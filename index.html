@@ -147,7 +147,13 @@ const palettes = [
   { base:'#c99729', p:['#f0d875','#bd8020','#f8e59a'] },
   { base:'#192b43', p:['#274565','#101c2c','#70dff0'] },
   { base:'#c6c9c5', p:['#eb7467','#4d5960','#ff9f82'] },
-  { base:'#657f8c', p:['#d0dbd9','#344b57','#8da7ae'] }
+  { base:'#657f8c', p:['#d0dbd9','#344b57','#8da7ae'] },
+  { base:'#ef7628', p:['#f8ead6','#20252a','#ffc24a'] },
+  { base:'#d6c54c', p:['#f1e6a1','#77802e','#f6a641'] },
+  { base:'#51306f', p:['#dc55c1','#251c3b','#ff8fcf'] },
+  { base:'#197ab9', p:['#151d38','#f3cf32','#5cc7ee'] },
+  { base:'#63899a', p:['#bdd5d8','#355266','#eef4e8'] },
+  { base:'#ed8626', p:['#ffcf46','#dc4d21','#fff0b0'] }
 ];
 const FISH_SPECIES = [
   { name: 'Kohaku', palette: 0 }, { name: 'Sanke', palette: 1 },
@@ -155,7 +161,13 @@ const FISH_SPECIES = [
   { name: 'Bekko', palette: 4 }, { name: 'Ogon', palette: 5 },
   { name: 'Laternenfisch', palette: 6, kind: 'lantern' },
   { name: 'Lachs', palette: 7, kind: 'salmon' },
-  { name: 'Hai', palette: 8, kind: 'shark' }
+  { name: 'Hai', palette: 8, kind: 'shark' },
+  { name: 'Clownfisch', palette: 9, kind: 'clown' },
+  { name: 'Kugelfisch', palette: 10, kind: 'puffer' },
+  { name: 'Kampffisch', palette: 11, kind: 'betta' },
+  { name: 'Blauer Doktorfisch', palette: 12, kind: 'tang' },
+  { name: 'Schwertfisch', palette: 13, kind: 'swordfish' },
+  { name: 'Goldfisch', palette: 14, kind: 'goldfish' }
 ];
 const RARITIES = [
   { name: 'Häufig', color: '#dce8dc', chance: .62, scale: 1 },
@@ -194,13 +206,13 @@ class Fish {
     const picked = profile ? fishProfile(profile.species, profile.rarity) : { species: FISH_SPECIES[Math.floor(Math.random() * FISH_SPECIES.length)], rarity: randomRarity() };
     const pal = palettes[picked.species.palette % palettes.length];
     const dim = Math.min(W, H); this.species = picked.species; this.kind = this.species.kind || 'koi'; this.rarity = picked.rarity;
-    const shapeScale = this.kind === 'shark' ? 1.18 : this.kind === 'lantern' ? .76 : this.kind === 'salmon' ? .96 : 1;
+    const shapeScale = this.kind === 'shark' ? 1.18 : this.kind === 'lantern' ? .76 : this.kind === 'salmon' ? .96 : this.kind === 'puffer' ? .88 : this.kind === 'swordfish' ? 1.08 : 1;
     this.size = R(clamp(dim * .044, 25, 48), clamp(dim * .063, 34, 68)) * this.rarity.scale * shapeScale; this.x = clamp(x, 40, W - 40); this.y = clamp(y, 40, H - 40); this.a = R(-Math.PI, Math.PI);
     this.id = nextFishId++; this.ageMs = 0; this.foodLoad = 0; this.hasSpawned = false; this.dead = false; this.deathMs = 0; this.deathReason = '';
     this.cruise = this.kind === 'shark' ? R(.75, 1.05) : this.kind === 'lantern' ? R(.3, .55) : R(.45, .85); this.sp = this.cruise; this.drift = 0; this.phase = R(0, 6); this.scare = 0; this.sx = 0; this.sy = 0;
-    this.depth = R(12, 26); this.tancho = false; this.belly = 0; this.fat = R(.96, 1.08);
+    this.depth = R(12, 26); this.tancho = false; this.belly = 0; this.fat = this.kind === 'puffer' ? R(1.38, 1.5) : R(.96, 1.08);
     this.base = pal.base; this.spr = Math.floor(R(0, SPR.length)); this.flip = Math.random() < .5;
-    this.finCol = '#e9e4dc'; this.seg = [];
+    this.finCol = ({ clown:'#f5a444', puffer:'#d3c451', betta:'#d75bbd', tang:'#f2d33a', swordfish:'#9bbbc7', goldfish:'#ffc044' })[this.kind] || '#e9e4dc'; this.seg = [];
     for (let i = 0; i < N; i++) this.seg.push({ x: this.x - Math.cos(this.a) * i * this.size * .45, y: this.y - Math.sin(this.a) * i * this.size * .45 });
 
     // Große, organisch überlappende Farbplatten statt vieler kleiner Zufallsflecken.
@@ -228,6 +240,23 @@ class Fish {
       add(4, .05, .38, .72, '#36577a', 4); add(9, -.03, .35, .68, '#263f60', 4);
     } else if (this.kind === 'shark'){
       this.dark = false;
+    } else if (this.kind === 'clown'){
+      this.dark = false;
+    } else if (this.kind === 'puffer'){
+      this.dark = false;
+      add(4, 0, .22, .2, '#6f772b', 3); add(7, .04, .2, .18, '#6f772b', 3); add(10, -.03, .2, .18, '#6f772b', 3);
+    } else if (this.kind === 'betta'){
+      this.dark = false;
+      add(5, -.12, .55, .8, '#e35abc', 5); add(9, .08, .42, .72, '#352251', 4);
+    } else if (this.kind === 'tang'){
+      this.dark = false;
+      add(5, 0, .85, .72, '#111a33', 5); add(9, 0, .65, .52, '#111a33', 4);
+    } else if (this.kind === 'swordfish'){
+      this.dark = false;
+      add(5, -.08, .18, .95, '#dce9e8', 4);
+    } else if (this.kind === 'goldfish'){
+      this.dark = false;
+      add(4, -.08, .48, .72, '#ffd34a', 5); add(9, .06, .4, .68, '#dc4d21', 4);
     } else if (whiteBase) {
       // Kohaku-/Sanke-Anmutung: breite Orange-Rot-Felder auf hellem Körper.
       add(2, R(-.08, .08), 1.0, 1.35, orange, 7);
@@ -347,9 +376,10 @@ class Fish {
     const P = this.pts(), s = this.size, fat = this.fat, T = P[N - 1], tw = Math.sin(this.phase - N * .45), fc = this.finCol, tex = this.kind === 'koi' && SPR[this.spr] && SPR[this.spr].complete && SPR[this.spr].naturalWidth ? SPR[this.spr] : null;
     const nrm = (p, side, d) => ({ x: p.x + Math.cos(p.ang + 1.5708 * side) * d, y: p.y + Math.sin(p.ang + 1.5708 * side) * d, ang: p.ang });
     // Schwanzflosse: 7 Strahlen mit Wellenversatz, nach außen transparenter
-    const back = T.ang + Math.PI, L = s * 1.55, tips = [];
+    const back = T.ang + Math.PI, L = s * (this.kind === 'betta' ? 2.2 : this.kind === 'goldfish' ? 2.05 : 1.55), tips = [];
     for (let k = -3; k <= 3; k++){
-      const len = L * (.62 + .38 * Math.cos(k * .42)), an = back + k * .17 + tw * .35, lag = tw * s * .5 * (len / L);
+      const splitTail = this.kind === 'goldfish' && k === 0 ? .48 : 1;
+      const len = L * (.62 + .38 * Math.cos(k * .42)) * splitTail, an = back + k * .17 + tw * .35, lag = tw * s * .5 * (len / L);
       tips.push({ x: T.x + Math.cos(an) * len + Math.cos(back + 1.5708) * lag, y: T.y + Math.sin(an) * len + Math.sin(back + 1.5708) * lag });
     }
     const tg = ctx.createLinearGradient(T.x, T.y, tips[3].x, tips[3].y);
@@ -431,6 +461,23 @@ class Fish {
       ctx.strokeStyle = this.dark ? 'rgba(22,22,30,.72)' : 'rgba(215,225,230,.6)'; ctx.lineWidth = Math.max(w, 1); ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
       ctx.strokeStyle = this.dark ? 'rgba(22,22,30,.3)' : 'rgba(215,225,230,.3)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(e.x, e.y); ctx.stroke();
     }
+    if (this.kind === 'clown'){
+      for (const i of [3, 7, 11]){
+        const p = P[i], edge = s * prof[i] * fat * .82, left = nrm(p, -1, edge), right = nrm(p, 1, edge);
+        ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(25,24,25,.88)'; ctx.lineWidth = s * .34;
+        ctx.beginPath(); ctx.moveTo(left.x, left.y); ctx.lineTo(right.x, right.y); ctx.stroke();
+        ctx.strokeStyle = '#fff4df'; ctx.lineWidth = s * .22;
+        ctx.beginPath(); ctx.moveTo(left.x, left.y); ctx.lineTo(right.x, right.y); ctx.stroke();
+      }
+    }
+    if (this.kind === 'puffer'){
+      ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(94,94,42,.9)'; ctx.fillStyle = '#d6c96b'; ctx.lineWidth = 1;
+      for (let i = 2; i < 13; i++) for (const side of [-1, 1]){
+        const p = P[i], root = nrm(p, side, s * prof[i] * fat * .86), point = nrm(p, side, s * prof[i] * fat * 1.25);
+        ctx.beginPath(); ctx.moveTo(root.x - Math.cos(p.ang) * s * .09, root.y - Math.sin(p.ang) * s * .09);
+        ctx.lineTo(point.x, point.y); ctx.lineTo(root.x + Math.cos(p.ang) * s * .09, root.y + Math.sin(p.ang) * s * .09); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    }
     // Kopf: Kiemendeckel, Augen, Barteln, Maul
     const h = P[0], tip = { x: h.x + Math.cos(h.ang) * s * .8, y: h.y + Math.sin(h.ang) * s * .8, ang: h.ang }, g1 = P[1], ga = nrm(g1, 1, s * .85 * fat), gb = nrm(g1, -1, s * .85 * fat);
     ctx.strokeStyle = tex ? 'rgba(0,0,0,0)' : 'rgba(60,60,60,.28)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(ga.x, ga.y);
@@ -457,6 +504,13 @@ class Fish {
       ctx.quadraticCurveTo(root.x + Math.cos(h.ang + Math.PI / 2) * s * .78, root.y + Math.sin(h.ang + Math.PI / 2) * s * .78, bulb.x, bulb.y); ctx.stroke();
       ctx.shadowColor = '#73edff'; ctx.shadowBlur = 12; ctx.fillStyle = '#9af4ff'; ctx.beginPath(); ctx.arc(bulb.x, bulb.y, Math.max(2.5, s * .11), 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
       ctx.fillStyle = 'rgba(155,245,255,.45)'; ctx.beginPath(); ctx.arc(bulb.x, bulb.y, Math.max(5, s * .2), 0, Math.PI * 2); ctx.fill();
+    }
+    if (this.kind === 'swordfish'){
+      ctx.fillStyle = '#344e61'; ctx.strokeStyle = 'rgba(225,244,245,.75)'; ctx.lineWidth = Math.max(1, s * .045);
+      ctx.beginPath(); ctx.moveTo(tip.x, tip.y);
+      ctx.lineTo(tip.x + Math.cos(h.ang + 1.5708) * s * .12, tip.y + Math.sin(h.ang + 1.5708) * s * .12);
+      ctx.lineTo(tip.x + Math.cos(h.ang) * s * 2.05, tip.y + Math.sin(h.ang) * s * 2.05);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
     }
     ctx.fillStyle = tex ? 'rgba(0,0,0,0)' : 'rgba(90,40,30,.5)'; ctx.beginPath(); ctx.arc(tip.x, tip.y, s * .07, 0, 7); ctx.fill();
     ctx.restore();
