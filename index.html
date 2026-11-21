@@ -20,12 +20,23 @@ const off = () => { const c = document.createElement('canvas'); c.width = W * DP
 const mouse = { x: -999, y: -999, last: 0, speed: 0 };
 const ripples = [], food = [], pads = [], motes = [], fall = [], eggs = [], eggInventory = [], fishInventory = [], bubbles = [];
 let nextFishId = 1, selectedFish = null, followSelected = false, plantMode = false, bubbleMode = false;
-const POND_DECOR_KEY = 'koiPondDecorV1', pondDecor = [];
+const PLAYER_NAME_KEY = 'koiPondActivePlayer';
+function playerStorageKey(name,part){ return 'koiPondPlayer:'+encodeURIComponent(String(name).trim().toLocaleLowerCase())+':'+part; }
+let currentPlayerName='Spieler 1';
+try { currentPlayerName=(localStorage.getItem(PLAYER_NAME_KEY)||currentPlayerName).trim().slice(0,32)||'Spieler 1'; localStorage.setItem(PLAYER_NAME_KEY,currentPlayerName); } catch {}
+let POND_DECOR_KEY = playerStorageKey(currentPlayerName,'decor');
+const pondDecor = [];
 let pondEditMode = false, decorType = 'grass', decorDrag = null, selectedMapItem = null, mapItemSize = 1;
-try {
-  const savedDecor = JSON.parse(localStorage.getItem(POND_DECOR_KEY) || '[]');
-  if (Array.isArray(savedDecor)) pondDecor.push(...savedDecor.filter(d => d && ['grass','rock','coral','wood'].includes(d.type) && Number.isFinite(d.x) && Number.isFinite(d.y)));
-} catch {}
+function loadDecorForPlayer(){
+  pondDecor.length=0;
+  try {
+    let raw=localStorage.getItem(POND_DECOR_KEY);
+    if(!raw && currentPlayerName.toLocaleLowerCase()==='spieler 1') raw=localStorage.getItem('koiPondDecorV1');
+    const saved=JSON.parse(raw||'[]');
+    if(Array.isArray(saved)) pondDecor.push(...saved.filter(d=>d&&['grass','rock','coral','wood'].includes(d.type)&&Number.isFinite(d.x)&&Number.isFinite(d.y)));
+  } catch {}
+}
+loadDecorForPlayer();
 function savePondDecor(){ try { localStorage.setItem(POND_DECOR_KEY, JSON.stringify(pondDecor)); } catch {} }
 const REPRODUCE_AFTER_MS = 4 * 60 * 1000;
 const FISH_LIFETIME_MS = 6 * 60 * 1000;
@@ -935,8 +946,67 @@ addEventListener('dblclick', e => {
 
 /* ---------- Loop ---------- */
 const fishes = [];
+function saveGameState(){
+  try{
+    const minDim=Math.max(1,Math.min(W,H));
+    const state={version:1,savedAt:Date.now(),nextFishId,
+      fishes:fishes.map(f=>({species:f.species.name,rarity:f.rarity.name,id:f.id,ageMs:f.ageMs,foodLoad:f.foodLoad,hasSpawned:f.hasSpawned,dead:f.dead,deathMs:f.deathMs,deathReason:f.deathReason,
+        x:f.seg[0].x/W,y:f.seg[0].y/H,a:f.a,size:f.size,cruise:f.cruise,sp:f.sp,drift:f.drift,phase:f.phase,depth:f.depth,tancho:f.tancho,belly:f.belly,fat:f.fat,base:f.base,spr:f.spr,flip:f.flip,dark:f.dark,inflate:f.inflate,patches:f.patches,
+        seg:f.seg.map(p=>({x:p.x/W,y:p.y/H}))})),
+      eggs:eggs.map(e=>({...e,x:e.x/W,y:e.y/H})),
+      eggInventory:eggInventory.map(e=>({...e})),fishInventory:fishInventory.map(f=>({...f})),
+      pads:pads.map(p=>({x:p.x/W,y:p.y/H,r:p.r/minDim,scale:p.scale||1,rot:p.rot,ph:p.ph,fr:p.fr,vx:p.vx,vy:p.vy,flower:p.flower})),decor:pondDecor.map(d=>({...d}))};
+    localStorage.setItem(playerStorageKey(currentPlayerName,'save'),JSON.stringify(state));
+    savePondDecor();
+  }catch{}
+}
+function loadPlayerGameState(){
+  loadDecorForPlayer();
+  try{
+    const state=JSON.parse(localStorage.getItem(playerStorageKey(currentPlayerName,'save'))||'null');
+    if(!state||state.version!==1) return false;
+    const validSpecies=name=>FISH_SPECIES.some(s=>s.name===name), validRarity=name=>RARITIES.some(r=>r.name===name);
+    fishes.length=0;
+    for(const data of Array.isArray(state.fishes)?state.fishes:[]){
+      if(!data||!validSpecies(data.species)||!validRarity(data.rarity)) continue;
+      const fish=new Fish(clamp(Number(data.x)*W,40,W-40),clamp(Number(data.y)*H,40,H-40),{species:data.species,rarity:data.rarity});
+      for(const key of ['id','ageMs','foodLoad','deathMs','x','y','a','size','cruise','sp','drift','phase','depth','belly','fat','inflate','spr']) if(Number.isFinite(data[key])) fish[key]=data[key];
+      for(const key of ['hasSpawned','dead','tancho','flip','dark']) if(typeof data[key]==='boolean') fish[key]=data[key];
+      if(typeof data.deathReason==='string') fish.deathReason=data.deathReason;
+      if(typeof data.base==='string') fish.base=data.base;
+      if(Array.isArray(data.patches)) fish.patches=data.patches;
+      if(Array.isArray(data.seg)&&data.seg.length===N&&data.seg.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y))) fish.seg=data.seg.map(p=>({x:clamp(p.x,0,1)*W,y:clamp(p.y,0,1)*H}));
+      fish.x=fish.seg[0].x; fish.y=fish.seg[0].y; fish.scare=0; fishes.push(fish);
+    }
+    eggs.length=0;
+    for(const e of Array.isArray(state.eggs)?state.eggs:[]) if(e&&validSpecies(e.species)&&validRarity(e.rarity)&&Number.isFinite(e.x)&&Number.isFinite(e.y)) eggs.push({...e,x:clamp(e.x,0,1)*W,y:clamp(e.y,0,1)*H});
+    eggInventory.length=0;
+    for(const e of Array.isArray(state.eggInventory)?state.eggInventory:[]) if(e&&validSpecies(e.species)&&validRarity(e.rarity)) eggInventory.push(e);
+    fishInventory.length=0;
+    for(const f of Array.isArray(state.fishInventory)?state.fishInventory:[]) if(f&&validSpecies(f.species)&&validRarity(f.rarity)) fishInventory.push(f);
+    if(Array.isArray(state.pads)){
+      const minDim=Math.min(W,H); pads.length=0;
+      for(const p of state.pads) if(p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.r)) pads.push({x:clamp(p.x,0,1)*W,y:clamp(p.y,0,1)*H,r:Math.max(8,p.r*minDim),scale:Number.isFinite(p.scale)?p.scale:1,rot:p.rot||0,ph:p.ph||0,fr:Number.isFinite(p.fr)?p.fr:Math.random(),vx:0,vy:0,cx:clamp(p.x,0,1)*W,cy:clamp(p.y,0,1)*H,flower:!!p.flower});
+    }
+    if(Array.isArray(state.decor)){
+      pondDecor.length=0; pondDecor.push(...state.decor.filter(d=>d&&['grass','rock','coral','wood'].includes(d.type)&&Number.isFinite(d.x)&&Number.isFinite(d.y)));
+      savePondDecor();
+    }
+    const ids=[...fishes.map(f=>f.id),...eggs.map(e=>e.id),...eggInventory.map(e=>e.id),...fishInventory.map(f=>f.id)].filter(Number.isFinite);
+    nextFishId=Math.max(Number.isFinite(state.nextFishId)?state.nextFishId:1,...ids.map(id=>id+1));
+    selectedFish=null; followSelected=false; selectedMapItem=null; mapItemSize=1;
+    return true;
+  }catch{return false;}
+}
+function resetPlayerGameState(){
+  fishes.length=0; eggs.length=0; eggInventory.length=0; fishInventory.length=0; pondDecor.length=0; pads.length=0;
+  selectedFish=null; followSelected=false; selectedMapItem=null; pondEditMode=false; plantMode=false; bubbleMode=false; decorDrag=null; dragPad=null; fishDrag=null; nextFishId=1; mapItemSize=1; makePads(); loadDecorForPlayer();
+}
 resize(); addEventListener('resize', resize);
-for (let i = 0; i < 7; i++) fishes.push(new Fish());
+if(!loadPlayerGameState()) for (let i = 0; i < 7; i++) fishes.push(new Fish());
+setInterval(saveGameState,5000);
+addEventListener('beforeunload',saveGameState); addEventListener('pagehide',saveGameState);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveGameState();});
 const FRAME_INTERVAL_MS = 1000 / 45; // Begrenzt die aufwendige Canvas-Zeichnung auf 45 Bilder pro Sekunde.
 let lastT = performance.now(), lastRenderT = 0, lastInventoryUIT = 0, rainT = 0, simulationElapsedMs = 0, nextSeasonChangeMs = SEASON_LENGTH_MS;
 function updateEggs(elapsedMs){
@@ -1048,14 +1118,21 @@ interactionStyle.textContent = '#plantBtn,#bubbleBtn,#followBtn,#releaseBtn{bord
 document.head.appendChild(interactionStyle);
 const plantBtn = interactionDock.querySelector('#plantBtn'), bubbleBtn = interactionDock.querySelector('#bubbleBtn');
 const gardenBtn = document.createElement('button'); gardenBtn.id='gardenBtn'; gardenBtn.type='button'; gardenBtn.textContent='🪸 Teich gestalten'; interactionDock.appendChild(gardenBtn);
+const playerBtn=document.createElement('button'); playerBtn.id='playerBtn'; playerBtn.type='button'; playerBtn.textContent='👤 '+currentPlayerName; interactionDock.appendChild(playerBtn);
 const gardenPanel = document.createElement('section'); gardenPanel.id='gardenPanel';
 gardenPanel.innerHTML='<b>Teich gestalten</b><div class="gardenTools"><button type="button" data-decor="grass">🌿 Seegras</button><button type="button" data-decor="rock">🪨 Stein</button><button type="button" data-decor="coral">🪸 Koralle</button><button type="button" data-decor="wood">🪵 Treibholz</button><button type="button" data-decor="erase">⌫ Entfernen</button></div><div class="gardenSize"><label for="gardenSize">Größe <b id="gardenSizeValue">100 %</b></label><input id="gardenSize" type="range" min="40" max="220" step="5" value="100"></div><small>Skaliert das ausgewählte Objekt oder bestimmt die Größe für neue Objekte. Ziehe Deko zum Verschieben.</small>';
 document.body.appendChild(gardenPanel);
+const playerPanel=document.createElement('section'); playerPanel.id='playerPanel';
+playerPanel.innerHTML='<b>Spielerprofil</b><label for="playerNameInput">Profilname</label><input id="playerNameInput" maxlength="32" autocomplete="off"><button id="loadPlayerBtn" type="button">Spielstand laden</button><small>Autospeicherung alle 5 Sekunden und beim Verlassen. Profile liegen getrennt in diesem Browser.</small>';
+document.body.appendChild(playerPanel);
 const gardenStyle=document.createElement('style');
 gardenStyle.textContent='#gardenBtn{border:1px solid rgba(255,255,255,.28);border-radius:9px;padding:8px 10px;background:rgba(8,35,38,.82);color:#fff;font:12px sans-serif;cursor:pointer;box-shadow:0 2px 9px rgba(0,0,0,.18)} #gardenBtn.active{background:rgba(47,112,91,.94);border-color:rgba(220,255,220,.65)} #gardenPanel{position:fixed;left:12px;top:12px;z-index:22;display:none;width:226px;max-width:calc(100vw - 24px);padding:11px 12px;border:1px solid rgba(255,255,255,.22);border-radius:11px;background:rgba(5,28,32,.9);color:#fff;font:12px/1.45 sans-serif;box-shadow:0 5px 18px rgba(0,0,0,.28);backdrop-filter:blur(6px);user-select:none} .gardenTools{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:9px 0} .gardenTools button{padding:7px 6px;border:1px solid rgba(255,255,255,.2);border-radius:7px;background:rgba(255,255,255,.08);color:#fff;font:11px sans-serif;cursor:pointer} .gardenTools button.active{background:rgba(75,132,89,.9);border-color:#cbf0ad} #gardenPanel small{display:block;color:rgba(255,255,255,.75)}';
 gardenStyle.textContent+='.gardenSize{margin:8px 0}.gardenSize label{display:flex;justify-content:space-between;align-items:center}.gardenSize input{width:100%;margin:6px 0 0;accent-color:#a7d589}';
+gardenStyle.textContent+='#playerBtn{border:1px solid rgba(255,255,255,.28);border-radius:9px;padding:8px 10px;background:rgba(8,35,38,.82);color:#fff;font:12px sans-serif;cursor:pointer;box-shadow:0 2px 9px rgba(0,0,0,.18)} #playerPanel{position:fixed;right:12px;top:56px;z-index:23;display:none;width:220px;max-width:calc(100vw - 24px);padding:12px;border:1px solid rgba(255,255,255,.22);border-radius:11px;background:rgba(5,28,32,.94);color:#fff;font:12px/1.45 sans-serif;box-shadow:0 5px 18px rgba(0,0,0,.3);backdrop-filter:blur(6px)} #playerPanel label,#playerPanel input,#playerPanel small{display:block;margin-top:8px} #playerPanel input{box-sizing:border-box;width:100%;padding:7px;border:1px solid rgba(255,255,255,.25);border-radius:6px;background:rgba(255,255,255,.1);color:#fff;font:12px sans-serif} #playerPanel button{width:100%;margin-top:8px;padding:8px;border:1px solid rgba(255,255,255,.25);border-radius:7px;background:rgba(65,116,87,.88);color:#fff;font:12px sans-serif;cursor:pointer} #playerPanel small{color:rgba(255,255,255,.72)}';
 document.head.appendChild(gardenStyle);
 const gardenSize=gardenPanel.querySelector('#gardenSize'), gardenSizeValue=gardenPanel.querySelector('#gardenSizeValue');
+const playerNameInput=playerPanel.querySelector('#playerNameInput'), loadPlayerBtn=playerPanel.querySelector('#loadPlayerBtn');
+playerNameInput.value=currentPlayerName;
 function updateGardenSizeUI(){
   const value=selectedMapItem?(selectedMapItem.kind==='decor'?selectedMapItem.item.size:(selectedMapItem.item.scale||1)):mapItemSize;
   gardenSize.value=String(Math.round(value*100)); gardenSizeValue.textContent=Math.round(value*100)+' %';
@@ -1064,6 +1141,22 @@ gardenSize.addEventListener('input',e=>{
   mapItemSize=Number(e.target.value)/100;
   if(selectedMapItem){ if(selectedMapItem.kind==='decor'){selectedMapItem.item.size=mapItemSize;savePondDecor();} else selectedMapItem.item.scale=mapItemSize; }
   updateGardenSizeUI();
+});
+playerBtn.addEventListener('click',()=>{ playerNameInput.value=currentPlayerName; playerPanel.style.display=playerPanel.style.display==='none'?'block':'none'; });
+playerPanel.addEventListener('pointerdown',e=>e.stopPropagation());
+loadPlayerBtn.addEventListener('click',()=>{
+  const name=playerNameInput.value.trim().slice(0,32);
+  if(!name){ setInteractionHint('Gib einen Profilnamen ein.'); return; }
+  saveGameState();
+  currentPlayerName=name;
+  try{localStorage.setItem(PLAYER_NAME_KEY,currentPlayerName);}catch{}
+  POND_DECOR_KEY=playerStorageKey(currentPlayerName,'decor');
+  resetPlayerGameState();
+  const restored=loadPlayerGameState();
+  if(!restored) for(let i=0;i<7;i++) fishes.push(new Fish());
+  playerBtn.textContent='👤 '+currentPlayerName; playerPanel.style.display='none';
+  updateInventoryUI(); updateGardenSizeUI(); updateInteractionUI(); saveGameState();
+  setInteractionHint('Spielstand für „'+currentPlayerName+'“ geladen und automatisch gespeichert.');
 });
 interactionDock.addEventListener('pointerdown', e => e.stopPropagation());
 gardenPanel.addEventListener('pointerdown',e=>e.stopPropagation());
