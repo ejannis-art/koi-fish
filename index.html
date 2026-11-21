@@ -142,7 +142,7 @@ const palettes = [
   { base:'#f3eee3', p:['#f04b12','#17191b','#d93616'] },
   { base:'#f04b12', p:['#f3eee3','#17191b','#e44a20'] },
   { base:'#f3eee3', p:['#e94316','#17191b','#f47738'] },
-  { base:'#ed5018', p:['#f5eee1','#17191b','#f7a17b'] },
+  { base:'#f3eee3', p:['#d93616','#17191b','#f7a17b'] },
   { base:'#f1eee4', p:['#262a2d','#e85b34','#262a2d'] },
   { base:'#c99729', p:['#f0d875','#bd8020','#f8e59a'] },
   { base:'#192b43', p:['#274565','#101c2c','#70dff0'] },
@@ -226,7 +226,7 @@ class Fish {
     this.cruise = this.kind === 'shark' ? R(.75, 1.05) : this.kind === 'lantern' || this.kind === 'puffer' ? R(.3, .5) : R(.45, .85); this.sp = this.cruise; this.drift = 0; this.phase = R(0, 6); this.scare = 0; this.inflate = 0; this.sx = 0; this.sy = 0;
     this.depth = R(12, 26); this.tancho = false; this.belly = 0; this.fat = R(.96, 1.08);
     this.base = pal.base; this.spr = Math.floor(R(0, SPR.length)); this.flip = Math.random() < .5;
-    this.finCol = ({ clown:'#f5a444', puffer:'#d3c451', betta:'#d75bbd', tang:'#f2d33a', swordfish:'#9bbbc7', goldfish:'#ffc044' })[this.kind] || '#e9e4dc'; this.seg = [];
+    this.finCol = ({ lantern:'#70dff0', salmon:'#e97d70', shark:'#637e8b', clown:'#f5a444', puffer:'#d3c451', betta:'#d75bbd', tang:'#f2d33a', swordfish:'#9bbbc7', goldfish:'#ffc044' })[this.kind] || '#e9e4dc'; this.seg = [];
     for (let i = 0; i < N; i++) this.seg.push({ x: this.x - Math.cos(this.a) * i * this.size * this.gapScale, y: this.y - Math.sin(this.a) * i * this.size * this.gapScale });
 
     // Große, organisch überlappende Farbplatten statt vieler kleiner Zufallsflecken.
@@ -248,7 +248,15 @@ class Fish {
 
     const whiteBase = this.base === '#f3eee3';
     const orange = pal.p[0], sumi = pal.p[1], warm = pal.p[2];
-    if (this.kind === 'salmon'){
+    if (this.kind === 'koi' && this.species.name === 'Ogon'){
+      this.dark = false;
+    } else if (this.kind === 'koi' && this.species.name === 'Tancho'){
+      this.dark = false;
+      add(1, 0, .7, .62, '#d93616', 5);
+    } else if (this.kind === 'koi' && this.species.name === 'Bekko'){
+      this.dark = false;
+      add(4, -.04, .5, .62, '#262a2d', 4); add(8, .03, .58, .7, '#262a2d', 4); add(12, 0, .4, .46, '#262a2d', 3);
+    } else if (this.kind === 'salmon'){
       add(3, 0, .42, 1.05, orange, 5); add(7, 0, .46, 1.15, orange, 5); add(11, 0, .4, .95, warm, 4);
     } else if (this.kind === 'lantern'){
       add(4, .05, .38, .72, '#36577a', 4); add(9, -.03, .35, .68, '#263f60', 4);
@@ -277,10 +285,12 @@ class Fish {
       add(6, R(-.08, .08), 1.05, 1.55, orange, 7);
       add(10, R(-.1, .1), .88, 1.2, Math.random() < .45 ? warm : orange, 6);
       if (Math.random() < .72) add(13, R(-.05, .05), .6, .75, orange, 4);
-      // Sumi-Flecken sitzen als klar erkennbare dunkle Inseln auf dem Rücken.
-      if (Math.random() < .82) add(3 + Math.floor(R(0, 2)), R(-.1, .1), .62, .72, sumi, 4);
-      if (Math.random() < .88) add(8 + Math.floor(R(0, 2)), R(-.1, .1), .72, .82, sumi, 5);
-      if (Math.random() < .55) add(12, R(-.08, .08), .48, .55, sumi, 3);
+      if (this.kind === 'koi' && ['Sanke','Showa'].includes(this.species.name)){
+        // Sumi-Flecken sitzen als klar erkennbare dunkle Inseln auf dem Rücken.
+        if (Math.random() < .82) add(3 + Math.floor(R(0, 2)), R(-.1, .1), .62, .72, sumi, 4);
+        if (Math.random() < .88) add(8 + Math.floor(R(0, 2)), R(-.1, .1), .72, .82, sumi, 5);
+        if (Math.random() < .55) add(12, R(-.08, .08), .48, .55, sumi, 3);
+      }
     } else {
       // Hi-/Showa-Anmutung: orange-roter Rücken mit weißen und schwarzen Inseln.
       add(1 + Math.floor(R(0, 2)), R(-.08, .08), .9, .95, '#f3eee3', 5);
@@ -291,7 +301,7 @@ class Fish {
       if (Math.random() < .65) add(13, R(-.06, .06), .48, .55, sumi, 3);
     }
     // Einzelne rote Akzente variieren die Zeichnung, ohne die großen Flächen aufzulösen.
-    if (Math.random() < .45) add(4 + Math.floor(R(0, 5)), R(-.45, .45), .28, .42, warm, 3);
+    if (this.kind === 'koi' && ['Sanke','Showa'].includes(this.species.name) && Math.random() < .45) add(4 + Math.floor(R(0, 5)), R(-.45, .45), .28, .42, warm, 3);
   }
   update(dt, elapsedMs = dt * 16.67){
     if (this.dead){
@@ -373,7 +383,7 @@ class Fish {
       L.push({ x: p.x + Math.cos(p.ang + 1.5708) * w, y: p.y + Math.sin(p.ang + 1.5708) * w });
       Rr.push({ x: p.x - Math.cos(p.ang + 1.5708) * w, y: p.y - Math.sin(p.ang + 1.5708) * w });
     }
-    const snout = this.kind === 'puffer' ? .22 : .8;
+    const snout = ({ puffer:.22, clown:.48, tang:.56, goldfish:.52, lantern:.42 })[this.kind] || .8;
     const tip = { x: P[0].x + Math.cos(P[0].ang) * s * snout, y: P[0].y + Math.sin(P[0].ang) * s * snout };
     return [tip, ...L, ...Rr.reverse()];
   }
@@ -396,7 +406,7 @@ class Fish {
     // Schwanzflosse: 7 Strahlen mit Wellenversatz, nach außen transparenter
     const back = T.ang + Math.PI, L = s * this.tailScale, tips = [];
     for (let k = -3; k <= 3; k++){
-      const splitTail = this.kind === 'goldfish' && k === 0 ? .48 : 1;
+      const splitTail = this.kind === 'goldfish' && k === 0 ? .42 : this.kind === 'swordfish' && k === 0 ? .64 : this.kind === 'salmon' && k === 0 ? .78 : 1;
       const sharkLobe = this.kind === 'shark' ? (k < 0 ? 1.3 : k > 0 ? .72 : 1) : 1;
       const len = L * (.62 + .38 * Math.cos(k * .42)) * splitTail * sharkLobe, an = back + k * .17 + tw * .35, lag = tw * s * .5 * (len / L);
       tips.push({ x: T.x + Math.cos(an) * len + Math.cos(back + 1.5708) * lag, y: T.y + Math.sin(an) * len + Math.sin(back + 1.5708) * lag });
@@ -408,6 +418,12 @@ class Fish {
     ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(70,80,90,.2)'; ctx.lineWidth = .8;
     for (const t of tips){ ctx.beginPath(); ctx.moveTo(T.x, T.y); ctx.lineTo(t.x, t.y); ctx.stroke(); }
+    if (this.kind === 'clown'){
+      ctx.strokeStyle = 'rgba(30,22,18,.7)'; ctx.lineWidth = Math.max(1,s*.035);
+      ctx.beginPath(); ctx.moveTo(T.x,T.y); ctx.lineTo(tips[0].x,tips[0].y);
+      for (let i=0;i<6;i++){ const A=tips[i],B=tips[i+1]; ctx.quadraticCurveTo((A.x+B.x)/2,(A.y+B.y)/2,B.x,B.y); }
+      ctx.closePath(); ctx.stroke();
+    }
     const fl = Math.sin(this.phase * 1.3) * .3;
     const finScale = this.kind === 'puffer' ? .5 : this.kind === 'clown' || this.kind === 'tang' ? .78 : this.kind === 'shark' ? 1.12 : 1;
     for (const side of [-1, 1]){ // Brust- und Bauchflossen
@@ -432,7 +448,7 @@ class Fish {
       }
     }
     for (const pt of tex ? [] : this.patches){ // Flecken mit weichem Rand
-      const p = P[pt.i], hw = s * prof[pt.i] * fat; pt.t = pt.t || hexA(pt.c, 0); pt.f = pt.f || hexA(pt.c, 1);
+      const p = P[pt.i], hw = s * this.shapeProf[pt.i] * fat; pt.t = pt.t || hexA(pt.c, 0); pt.f = pt.f || hexA(pt.c, 1);
       ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.ang);
       for (const b of pt.bl){
         ctx.save(); ctx.translate(b.dx * s, b.dy * hw); ctx.scale(b.rx * s + 2, b.ry * hw + 2);
@@ -442,10 +458,11 @@ class Fish {
       ctx.restore();
     }
     // Feine, überlappende Schuppen und ein weicher Licht-Schatten-Verlauf
-    const bodyShade = ctx.createLinearGradient(0, P[0].y-s*1.1, 0, P[0].y+s*1.2);
-    bodyShade.addColorStop(0,'rgba(255,255,255,.20)');
-    bodyShade.addColorStop(.42,'rgba(255,255,255,.025)');
-    bodyShade.addColorStop(1,'rgba(8,24,32,.19)');
+    const lightSide = nrm(P[5], -1, s * 1.25), shadeSide = nrm(P[5], 1, s * 1.25);
+    const bodyShade = ctx.createLinearGradient(lightSide.x, lightSide.y, shadeSide.x, shadeSide.y);
+    bodyShade.addColorStop(0,'rgba(255,255,255,.24)');
+    bodyShade.addColorStop(.38,'rgba(255,255,255,.035)');
+    bodyShade.addColorStop(1,'rgba(4,20,28,.25)');
     ctx.fillStyle=bodyShade; ctx.fillRect(0,0,W,H);
     if(!tex){
       for(let i=1;i<13;i++) for(let k=-3;k<=3;k++){
@@ -468,6 +485,11 @@ class Fish {
       ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(224,91,77,.74)'; ctx.lineWidth = s * .16; ctx.beginPath();
       for (let i = 2; i < 13; i++){ const p = nrm(P[i], 1, s * this.shapeProf[i] * fat * .27); if (i === 2) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); }
       ctx.stroke(); ctx.restore();
+      ctx.fillStyle = 'rgba(49,57,60,.48)';
+      for (const i of [3,5,7,9,11]){
+        const p = nrm(P[i], -1, s * this.shapeProf[i] * fat * .56);
+        ctx.beginPath(); ctx.ellipse(p.x, p.y, Math.max(1,s*.035), Math.max(.8,s*.024), p.ang, 0, Math.PI*2); ctx.fill();
+      }
     }
     if (!['koi','puffer'].includes(this.kind)){
       ctx.save(); ctx.strokeStyle = 'rgba(20,42,48,.26)'; ctx.lineWidth = Math.max(.7, s * .018); ctx.beginPath();
@@ -477,7 +499,19 @@ class Fish {
       }
       ctx.stroke(); ctx.restore();
     }
-    ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,255,255,.09)'; ctx.lineWidth = s * .5 * fat; // Glanz
+    if (this.kind === 'lantern'){
+      ctx.save(); ctx.shadowColor = '#77eaff'; ctx.shadowBlur = 6;
+      for (let i = 4; i <= 11; i += 2){
+        const p = nrm(P[i], 1, s * this.shapeProf[i] * fat * .72);
+        ctx.fillStyle = 'rgba(110,225,244,.78)'; ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(1.5,s*.045), 0, Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (this.kind === 'koi' && this.species.name === 'Ogon'){
+      ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.strokeStyle = 'rgba(255,242,165,.38)'; ctx.lineWidth = s * .15; ctx.lineCap = 'round';
+      ctx.beginPath(); for (let i = 1; i < 12; i++){ if (i === 1) ctx.moveTo(P[i].x, P[i].y); else ctx.lineTo(P[i].x, P[i].y); } ctx.stroke(); ctx.restore();
+    }
+    ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth = s * .28 * fat; // Glanz
     ctx.beginPath(); ctx.moveTo(P[1].x, P[1].y); for (let i = 2; i < 11; i++) ctx.lineTo(P[i].x, P[i].y); ctx.stroke();
     this.path(O); ctx.strokeStyle = 'rgba(40,70,85,.34)'; ctx.lineWidth = s * .5; ctx.stroke(); // Randschatten
     ctx.restore();
@@ -488,8 +522,22 @@ class Fish {
       const smallA = P[10], smallB = P[12], smallTip = nrm(P[10], 1, s * .42);
       ctx.beginPath(); ctx.moveTo(smallA.x, smallA.y); ctx.lineTo(smallTip.x, smallTip.y); ctx.lineTo(smallB.x, smallB.y); ctx.closePath(); ctx.fill(); ctx.stroke();
     }
+    if (this.kind === 'swordfish'){
+      const rootA=nrm(P[3],1,s*this.shapeProf[3]*fat*.72), rootB=nrm(P[9],1,s*this.shapeProf[9]*fat*.72), sail=nrm(P[5],1,s*1.42);
+      const sailFill=ctx.createLinearGradient(rootA.x,rootA.y,sail.x,sail.y); sailFill.addColorStop(0,'rgba(86,119,132,.88)'); sailFill.addColorStop(1,'rgba(190,215,218,.42)');
+      ctx.fillStyle=sailFill; ctx.strokeStyle='rgba(45,75,89,.58)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(rootA.x,rootA.y); ctx.quadraticCurveTo(sail.x,sail.y,rootB.x,rootB.y); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    if (this.kind === 'tang'){
+      ctx.save(); ctx.lineCap='round'; ctx.strokeStyle='rgba(12,25,51,.82)'; ctx.lineWidth=s*.2; ctx.beginPath();
+      for (let i=2;i<=9;i++){ const p=nrm(P[i],-1,s*this.shapeProf[i]*fat*.72); if(i===2)ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); }
+      ctx.stroke();
+      const band=P[12], edge=s*this.shapeProf[12]*fat*.84, left=nrm(band,-1,edge), right=nrm(band,1,edge);
+      ctx.strokeStyle='rgba(22,31,41,.75)'; ctx.lineWidth=s*.3; ctx.beginPath(); ctx.moveTo(left.x,left.y); ctx.lineTo(right.x,right.y); ctx.stroke();
+      ctx.strokeStyle='#f4d234'; ctx.lineWidth=s*.19; ctx.beginPath(); ctx.moveTo(left.x,left.y); ctx.lineTo(right.x,right.y); ctx.stroke(); ctx.restore();
+    }
     const dorsalStart = this.kind === 'puffer' ? 8 : 3, dorsalEnd = this.kind === 'puffer' ? 10 : 9;
-    const dorsalScale = this.kind === 'shark' ? 1.65 : this.kind === 'puffer' ? .48 : this.kind === 'betta' ? 1.28 : 1;
+    const dorsalScale = this.kind === 'shark' ? 1.65 : this.kind === 'puffer' ? .48 : this.kind === 'betta' ? 1.28 : this.kind === 'tang' ? 1.18 : this.kind === 'goldfish' ? .82 : 1;
     for (let i = dorsalStart; i <= dorsalEnd; i++){
       const A = P[i], B = P[i + 1], w = s * .3 * dorsalScale * (1 - Math.abs(i - 6.2) / 4.5), e = nrm(A, 1, s * .4 * dorsalScale);
       ctx.strokeStyle = this.dark ? 'rgba(22,22,30,.72)' : 'rgba(215,225,230,.6)'; ctx.lineWidth = Math.max(w, 1); ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
@@ -518,15 +566,16 @@ class Fish {
       }
     }
     // Kopf: Kiemendeckel, Augen, Barteln, Maul
-    const h = P[0], tip = { x: h.x + Math.cos(h.ang) * s * .8, y: h.y + Math.sin(h.ang) * s * .8, ang: h.ang }, g1 = P[1], ga = nrm(g1, 1, s * .85 * fat), gb = nrm(g1, -1, s * .85 * fat);
+    const h = P[0], snout = ({ puffer:.22, clown:.48, tang:.56, goldfish:.52, lantern:.42 })[this.kind] || .8;
+    const tip = { x: h.x + Math.cos(h.ang) * s * snout, y: h.y + Math.sin(h.ang) * s * snout, ang: h.ang }, g1 = P[1], ga = nrm(g1, 1, s * .85 * fat), gb = nrm(g1, -1, s * .85 * fat);
     ctx.strokeStyle = tex ? 'rgba(0,0,0,0)' : 'rgba(60,60,60,.28)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(ga.x, ga.y);
     ctx.quadraticCurveTo(g1.x - Math.cos(g1.ang) * s * .5, g1.y - Math.sin(g1.ang) * s * .5, gb.x, gb.y); ctx.stroke();
     for (const side of tex ? [] : [-1, 1]){
       const e = nrm({ x: h.x + Math.cos(h.ang) * s * .15, y: h.y + Math.sin(h.ang) * s * .15, ang: h.ang }, side, s * .7 * fat);
       const eyeScale = this.kind === 'puffer' ? 1 + this.inflate * .25 : 1;
-      ctx.fillStyle = '#b8902c'; ctx.beginPath(); ctx.arc(e.x, e.y, s * .17 * eyeScale, 0, 7); ctx.fill();
-      ctx.fillStyle = '#0b0b10'; ctx.beginPath(); ctx.arc(e.x, e.y, s * .1 * eyeScale, 0, 7); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.beginPath(); ctx.arc(e.x - s * .03, e.y - s * .04, s * .035 * eyeScale, 0, 7); ctx.fill();
+      ctx.fillStyle = '#9a7942'; ctx.beginPath(); ctx.arc(e.x, e.y, s * .13 * eyeScale, 0, 7); ctx.fill();
+      ctx.fillStyle = '#0b0b10'; ctx.beginPath(); ctx.arc(e.x, e.y, s * .075 * eyeScale, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(e.x - s * .025, e.y - s * .03, s * .028 * eyeScale, 0, 7); ctx.fill();
       if (this.kind === 'koi'){
         const bb = nrm(tip, side, s * .1);
         ctx.strokeStyle = 'rgba(235,215,185,.85)'; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(bb.x, bb.y);
@@ -538,6 +587,13 @@ class Fish {
       for (const side of [-1, 1]) for (let k = 0; k < 3; k++){
         const g = nrm(P[1], side, s * (.48 + k * .13)); ctx.beginPath(); ctx.moveTo(g.x, g.y);
         ctx.lineTo(g.x - Math.cos(h.ang) * s * .12 + Math.cos(h.ang + side * .7) * s * .11, g.y - Math.sin(h.ang) * s * .12 + Math.sin(h.ang + side * .7) * s * .11); ctx.stroke();
+      }
+      const jaw=nrm(tip,1,s*.19), jawEnd={x:jaw.x+Math.cos(h.ang)*s*.43,y:jaw.y+Math.sin(h.ang)*s*.43};
+      ctx.strokeStyle='rgba(24,38,45,.82)'; ctx.lineWidth=Math.max(1.4,s*.035); ctx.beginPath(); ctx.moveTo(jaw.x,jaw.y); ctx.lineTo(jawEnd.x,jawEnd.y); ctx.stroke();
+      ctx.fillStyle='rgba(242,244,227,.95)';
+      for(let k=0;k<4;k++){
+        const x=jaw.x+Math.cos(h.ang)*s*(.06+k*.09), y=jaw.y+Math.sin(h.ang)*s*(.06+k*.09), tX=x+Math.cos(h.ang)*s*.045, tY=y+Math.sin(h.ang)*s*.045;
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(tX+Math.cos(h.ang+1.5708)*s*.027,tY+Math.sin(h.ang+1.5708)*s*.027); ctx.lineTo(tX+Math.cos(h.ang-1.5708)*s*.027,tY+Math.sin(h.ang-1.5708)*s*.027); ctx.closePath(); ctx.fill();
       }
     }
     if (this.kind === 'lantern'){
