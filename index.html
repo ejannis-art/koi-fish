@@ -20,6 +20,18 @@ const off = () => { const c = document.createElement('canvas'); c.width = W * DP
 const mouse = { x: -999, y: -999, last: 0, speed: 0 };
 const ripples = [], food = [], pads = [], motes = [], fall = [], eggs = [], eggInventory = [], fishInventory = [], bubbles = [];
 let nextFishId = 1, selectedFish = null, followSelected = false, plantMode = false, bubbleMode = false;
+const STARTING_GOLD=150, RARITY_GOLD_PER_MINUTE={'Häufig':2,'Selten':5,'Episch':12,'Legendär':30};
+const FREE_DECOR_TYPES=['grass','rock','coral','wood'];
+const SHOP_DECOR_ITEMS=[
+  {id:'shell',name:'Muschel',price:35,description:'Eine schimmernde Muschel'},
+  {id:'anemone',name:'Seeanemone',price:70,description:'Bewegliche bunte Tentakel'},
+  {id:'treasure',name:'Schatztruhe',price:110,description:'Eine alte Truhe mit Gold'},
+  {id:'cave',name:'Felsenhöhle',price:165,description:'Versteck für deine Fische'},
+  {id:'crystal',name:'Leuchtkristall',price:220,description:'Kristall mit sanftem Licht'}
+];
+function isDecorType(type){ return FREE_DECOR_TYPES.includes(type)||SHOP_DECOR_ITEMS.some(item=>item.id===type); }
+let gold=STARTING_GOLD, goldRemainder=0;
+const shopInventory={};
 const PLAYER_NAME_KEY = 'koiPondActivePlayer';
 function playerStorageKey(name,part){ return 'koiPondPlayer:'+encodeURIComponent(String(name).trim().toLocaleLowerCase())+':'+part; }
 let currentPlayerName='Spieler 1';
@@ -33,7 +45,7 @@ function loadDecorForPlayer(){
     let raw=localStorage.getItem(POND_DECOR_KEY);
     if(!raw && currentPlayerName.toLocaleLowerCase()==='spieler 1') raw=localStorage.getItem('koiPondDecorV1');
     const saved=JSON.parse(raw||'[]');
-    if(Array.isArray(saved)) pondDecor.push(...saved.filter(d=>d&&['grass','rock','coral','wood'].includes(d.type)&&Number.isFinite(d.x)&&Number.isFinite(d.y)));
+    if(Array.isArray(saved)) pondDecor.push(...saved.filter(d=>d&&isDecorType(d.type)&&Number.isFinite(d.x)&&Number.isFinite(d.y)));
   } catch {}
 }
 loadDecorForPlayer();
@@ -725,6 +737,46 @@ function drawPondDecor(t){
       ctx.lineWidth=s*.14; ctx.strokeStyle='rgba(35,28,19,.75)'; ctx.beginPath(); ctx.moveTo(-s*.2,-s*.2); ctx.quadraticCurveTo(-s*.06,-s*.64,s*.05,-s*.75); ctx.stroke();
       ctx.lineWidth=s*.025; ctx.strokeStyle='rgba(220,179,116,.42)'; ctx.beginPath(); ctx.moveTo(-s*.72,-s*.11); ctx.quadraticCurveTo(-s*.12,-s*.37,s*.63,-s*.06); ctx.stroke();
       ctx.strokeStyle='rgba(30,25,18,.65)'; ctx.lineWidth=s*.035; ctx.beginPath(); ctx.ellipse(-s*.48,-s*.12,s*.09,s*.055,-.15,0,Math.PI*2); ctx.stroke();
+    } else if (d.type === 'shell'){
+      const g=ctx.createLinearGradient(-s*.55,-s*.9,s*.5,s*.1); g.addColorStop(0,'#fff0c9'); g.addColorStop(.35,'#e1a87f'); g.addColorStop(.7,'#bd705d'); g.addColorStop(1,'#633d42');
+      ctx.fillStyle='rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,-s*.04,s*.62,s*.18,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle=g; ctx.strokeStyle='rgba(255,223,184,.58)'; ctx.lineWidth=Math.max(.7,s*.025); ctx.beginPath(); ctx.moveTo(-s*.56,0);
+      ctx.quadraticCurveTo(-s*.76,-s*.64,0,-s*.94); ctx.quadraticCurveTo(s*.76,-s*.64,s*.56,0); ctx.quadraticCurveTo(0,s*.17,-s*.56,0); ctx.closePath(); ctx.fill(); ctx.stroke();
+      for(let k=-4;k<=4;k++){
+        const ex=k*s*.105, ey=-s*(.78-Math.abs(k)*.085); ctx.strokeStyle=k%2?'rgba(255,232,193,.55)':'rgba(102,56,53,.32)'; ctx.lineWidth=Math.max(.6,s*.018);
+        ctx.beginPath(); ctx.moveTo(0,-s*.08); ctx.quadraticCurveTo(ex*.55,ey*.62,ex,ey); ctx.stroke();
+      }
+      ctx.fillStyle='rgba(255,248,215,.72)'; ctx.beginPath(); ctx.arc(-s*.18,-s*.62,s*.07,0,Math.PI*2); ctx.fill();
+    } else if (d.type === 'treasure'){
+      const g=ctx.createLinearGradient(-s*.5,-s*.5,s*.5,s*.18); g.addColorStop(0,'#9d6634'); g.addColorStop(.5,'#5d351f'); g.addColorStop(1,'#321f18');
+      ctx.fillStyle=g; ctx.strokeStyle='rgba(31,23,17,.9)'; ctx.lineWidth=s*.045; ctx.beginPath(); ctx.roundRect(-s*.62,-s*.24,s*1.24,s*.5,s*.08); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#80502a'; ctx.beginPath(); ctx.moveTo(-s*.62,-s*.24); ctx.quadraticCurveTo(-s*.57,-s*.95,0,-s*.88); ctx.quadraticCurveTo(s*.57,-s*.95,s*.62,-s*.24); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#d5a843'; ctx.fillRect(-s*.08,-s*.83,s*.16,s*.98); ctx.fillRect(-s*.62,-s*.12,s*1.24,s*.08);
+      ctx.fillStyle='#f6d36c'; ctx.beginPath(); ctx.arc(0,-s*.02,s*.105,0,Math.PI*2); ctx.fill();
+      for(let k=0;k<3;k++){ ctx.fillStyle=k?'#e9bd4e':'#fff0a3'; ctx.beginPath(); ctx.arc((k-1)*s*.2,-s*(.94+Math.sin(k)*.03),s*.055,0,Math.PI*2); ctx.fill(); }
+    } else if (d.type === 'cave'){
+      const g=ctx.createLinearGradient(-s*.65,-s*.8,s*.6,s*.15); g.addColorStop(0,'#8d9082'); g.addColorStop(.45,'#555e58'); g.addColorStop(1,'#252e2d');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(-s*.86,0); ctx.lineTo(-s*.8,-s*.47); ctx.lineTo(-s*.46,-s*.88); ctx.lineTo(-s*.08,-s*.7); ctx.lineTo(s*.28,-s*.92); ctx.lineTo(s*.72,-s*.58); ctx.lineTo(s*.9,0); ctx.closePath(); ctx.fill();
+      const hole=ctx.createRadialGradient(0,-s*.18,s*.12,0,-s*.18,s*.58); hole.addColorStop(0,'#020a0c'); hole.addColorStop(.72,'#071315'); hole.addColorStop(1,'rgba(4,12,13,.3)');
+      ctx.fillStyle=hole; ctx.beginPath(); ctx.ellipse(0,-s*.1,s*.48,s*.62,0,Math.PI,Math.PI*2); ctx.lineTo(s*.48,0); ctx.lineTo(-s*.48,0); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(191,203,177,.48)'; ctx.lineWidth=s*.045; ctx.beginPath(); ctx.moveTo(-s*.63,-s*.53); ctx.lineTo(-s*.42,-s*.78); ctx.moveTo(s*.35,-s*.79); ctx.lineTo(s*.65,-s*.51); ctx.stroke();
+      ctx.fillStyle='rgba(110,143,78,.7)'; ctx.beginPath(); ctx.ellipse(-s*.42,-s*.82,s*.18,s*.055,-.2,0,Math.PI*2); ctx.fill();
+    } else if (d.type === 'anemone'){
+      const colors=['#ed7b83','#f0b35b','#cf77c8','#68c8bc','#8095ea'];
+      for(let k=0;k<11;k++){
+        const baseX=(k-5)*s*.105, len=s*(.6+((k*7)%5)*.12), sway=Math.sin(t*.0017+phase+k*.9)*s*.13, tipX=baseX+sway, tipY=-len;
+        ctx.strokeStyle=colors[k%colors.length]; ctx.lineWidth=s*(.055+(k%3)*.012); ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(baseX,0); ctx.bezierCurveTo(baseX-s*.05,-len*.35,tipX+s*.08,-len*.68,tipX,tipY); ctx.stroke();
+        ctx.fillStyle='rgba(255,226,191,.8)'; ctx.beginPath(); ctx.arc(tipX,tipY,s*.055,0,Math.PI*2); ctx.fill();
+      }
+      const base=ctx.createLinearGradient(0,-s*.18,0,s*.08); base.addColorStop(0,'#bb574e'); base.addColorStop(1,'#5b3941');
+      ctx.fillStyle=base; ctx.beginPath(); ctx.ellipse(0,-s*.04,s*.65,s*.16,0,0,Math.PI*2); ctx.fill();
+    } else if (d.type === 'crystal'){
+      const crystal=(cx,cy,w,h,col)=>{
+        const g=ctx.createLinearGradient(cx-w*.5,cy-h,cx+w*.5,cy); g.addColorStop(0,'rgba(227,255,250,.95)'); g.addColorStop(.26,col); g.addColorStop(1,'rgba(71,133,193,.72)');
+        ctx.fillStyle=g; ctx.strokeStyle='rgba(205,250,255,.72)'; ctx.lineWidth=Math.max(.7,s*.025); ctx.beginPath(); ctx.moveTo(cx,cy-h); ctx.lineTo(cx+w*.5,cy-h*.3); ctx.lineTo(cx+w*.34,cy); ctx.lineTo(cx-w*.32,cy); ctx.lineTo(cx-w*.5,cy-h*.32); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle='rgba(240,255,255,.58)'; ctx.beginPath(); ctx.moveTo(cx,cy-h); ctx.lineTo(cx,cy); ctx.moveTo(cx,cy-h); ctx.lineTo(cx+w*.34,cy); ctx.stroke();
+      };
+      ctx.shadowColor='#7eeaff'; ctx.shadowBlur=s*.28; crystal(-s*.3,0,s*.5,s*.9,'#66b9df'); crystal(s*.12,0,s*.56,s*1.26,'#9d8ee8'); crystal(s*.43,0,s*.34,s*.68,'#53cdd0'); ctx.shadowBlur=0;
     }
     if (pondEditMode && selectedMapItem && selectedMapItem.kind==='decor' && selectedMapItem.item === d){
       ctx.strokeStyle='rgba(227,255,190,.9)'; ctx.lineWidth=1.5; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.ellipse(0,-s*.3,s*.88,s*.92,0,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
@@ -872,7 +924,7 @@ function dropPad(){ if (!dragPad) return; if (performance.now() - dragPad.t > 80
 addEventListener('pointerup', dropPad); addEventListener('pointercancel', dropPad); addEventListener('mouseup', dropPad);
 function finishDecorDrag(e){
   if(!decorDrag || decorDrag.pointerId!==e.pointerId) return;
-  const moved=decorDrag.moved, item=decorDrag.item; decorDrag=null; savePondDecor(); document.body.style.cursor='default';
+  const moved=decorDrag.moved, item=decorDrag.item; decorDrag=null; saveGameState(); document.body.style.cursor='default';
   if(moved){ ripple(item.x*W,item.y*H,48,.35); setInteractionHint('Dekoration verschoben. Gestaltungsmodus bleibt aktiv.'); }
 }
 addEventListener('pointerup',finishDecorDrag); addEventListener('pointercancel',finishDecorDrag);
@@ -907,7 +959,7 @@ addEventListener('pointerdown', e => {
       if(hit){ pondDecor.splice(pondDecor.indexOf(hit),1); selectedMapItem=null; savePondDecor(); ripple(e.clientX,e.clientY,45,.35); setInteractionHint('Dekoration entfernt. Werkzeug bleibt aktiv.'); }
       else if(padHit){ pads.splice(pads.indexOf(padHit),1); selectedMapItem=null; ripple(e.clientX,e.clientY,45,.35); setInteractionHint('Seerose entfernt. Werkzeug bleibt aktiv.'); }
       else setInteractionHint('Tippe auf ein Deko-Element oder eine Seerose, um es zu entfernen.');
-      updateGardenSizeUI();
+      updateGardenSizeUI(); if(hit||padHit) saveGameState();
       return;
     }
     if(hit){ selectedMapItem={kind:'decor',item:hit}; updateGardenSizeUI(); decorDrag={item:hit,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,moved:false}; cv.setPointerCapture(e.pointerId); document.body.style.cursor='grab'; return; }
@@ -915,9 +967,12 @@ addEventListener('pointerdown', e => {
       selectedMapItem={kind:'pad',item:padHit}; updateGardenSizeUI(); dragPad=padHit; padHit.ox=e.clientX-padHit.x; padHit.oy=e.clientY-padHit.y; padHit.vx=padHit.vy=0; padHit.t=performance.now();
       cv.setPointerCapture(e.pointerId); document.body.style.cursor='grab'; return;
     }
+    const shopItem=SHOP_DECOR_ITEMS.find(item=>item.id===decorType);
+    if(shopItem&&!(shopInventory[shopItem.id]>0)){ setInteractionHint('Kaufe '+shopItem.name+' zuerst im Deko-Shop.'); return; }
     const item={type:decorType,x:clamp(e.clientX/W,.025,.975),y:clamp(e.clientY/H,.035,.965),size:mapItemSize,phase:R(0,Math.PI*2),seed:Math.floor(R(1,1000000))};
     pondDecor.push(item); selectedMapItem={kind:'decor',item}; updateGardenSizeUI(); savePondDecor(); ripple(e.clientX,e.clientY,55,.42);
-    const label=({grass:'Seegras',rock:'Stein',coral:'Koralle',wood:'Treibholz'})[decorType]||'Dekoration';
+    if(shopItem){ shopInventory[shopItem.id]--; updateShopUI(); } saveGameState();
+    const label=shopItem?shopItem.name:({grass:'Seegras',rock:'Stein',coral:'Koralle',wood:'Treibholz'})[decorType]||'Dekoration';
     setInteractionHint(label+' hinzugefügt. Das Werkzeug bleibt aktiv, bis du es ausschaltest.'); return;
   }
   const koi = hitFish(e.clientX, e.clientY);
@@ -949,7 +1004,7 @@ const fishes = [];
 function saveGameState(){
   try{
     const minDim=Math.max(1,Math.min(W,H));
-    const state={version:1,savedAt:Date.now(),nextFishId,
+    const state={version:1,savedAt:Date.now(),nextFishId,gold,goldRemainder,shopInventory:{...shopInventory},
       fishes:fishes.map(f=>({species:f.species.name,rarity:f.rarity.name,id:f.id,ageMs:f.ageMs,foodLoad:f.foodLoad,hasSpawned:f.hasSpawned,dead:f.dead,deathMs:f.deathMs,deathReason:f.deathReason,
         x:f.seg[0].x/W,y:f.seg[0].y/H,a:f.a,size:f.size,cruise:f.cruise,sp:f.sp,drift:f.drift,phase:f.phase,depth:f.depth,tancho:f.tancho,belly:f.belly,fat:f.fat,base:f.base,spr:f.spr,flip:f.flip,dark:f.dark,inflate:f.inflate,patches:f.patches,
         seg:f.seg.map(p=>({x:p.x/W,y:p.y/H}))})),
@@ -988,8 +1043,10 @@ function loadPlayerGameState(){
       const minDim=Math.min(W,H); pads.length=0;
       for(const p of state.pads) if(p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.r)) pads.push({x:clamp(p.x,0,1)*W,y:clamp(p.y,0,1)*H,r:Math.max(8,p.r*minDim),scale:Number.isFinite(p.scale)?p.scale:1,rot:p.rot||0,ph:p.ph||0,fr:Number.isFinite(p.fr)?p.fr:Math.random(),vx:0,vy:0,cx:clamp(p.x,0,1)*W,cy:clamp(p.y,0,1)*H,flower:!!p.flower});
     }
+    gold=Number.isFinite(state.gold)?Math.max(0,Math.floor(state.gold)):STARTING_GOLD; goldRemainder=Number.isFinite(state.goldRemainder)?Math.max(0,state.goldRemainder):0;
+    for(const item of SHOP_DECOR_ITEMS) shopInventory[item.id]=Number.isFinite(state.shopInventory?.[item.id])?Math.max(0,Math.floor(state.shopInventory[item.id])):0;
     if(Array.isArray(state.decor)){
-      pondDecor.length=0; pondDecor.push(...state.decor.filter(d=>d&&['grass','rock','coral','wood'].includes(d.type)&&Number.isFinite(d.x)&&Number.isFinite(d.y)));
+      pondDecor.length=0; pondDecor.push(...state.decor.filter(d=>d&&isDecorType(d.type)&&Number.isFinite(d.x)&&Number.isFinite(d.y)));
       savePondDecor();
     }
     const ids=[...fishes.map(f=>f.id),...eggs.map(e=>e.id),...eggInventory.map(e=>e.id),...fishInventory.map(f=>f.id)].filter(Number.isFinite);
@@ -1000,7 +1057,20 @@ function loadPlayerGameState(){
 }
 function resetPlayerGameState(){
   fishes.length=0; eggs.length=0; eggInventory.length=0; fishInventory.length=0; pondDecor.length=0; pads.length=0;
-  selectedFish=null; followSelected=false; selectedMapItem=null; pondEditMode=false; plantMode=false; bubbleMode=false; decorDrag=null; dragPad=null; fishDrag=null; nextFishId=1; mapItemSize=1; makePads(); loadDecorForPlayer();
+  selectedFish=null; followSelected=false; selectedMapItem=null; pondEditMode=false; plantMode=false; bubbleMode=false; decorDrag=null; dragPad=null; fishDrag=null; nextFishId=1; mapItemSize=1; gold=STARTING_GOLD; goldRemainder=0;
+  for(const item of SHOP_DECOR_ITEMS) shopInventory[item.id]=0;
+  makePads(); loadDecorForPlayer();
+}
+function goldPerMinute(){
+  let rate=0;
+  for(const fish of fishes) if(!fish.dead) rate+=RARITY_GOLD_PER_MINUTE[fish.rarity.name]||0;
+  for(const fish of fishInventory) rate+=RARITY_GOLD_PER_MINUTE[fish.rarity]||0;
+  return rate;
+}
+function updatePassiveGold(elapsedMs){
+  const rate=goldPerMinute(); if(!rate||!Number.isFinite(elapsedMs)||elapsedMs<=0) return;
+  goldRemainder+=rate*elapsedMs/60000;
+  const earned=Math.floor(goldRemainder); if(earned>0){gold+=earned;goldRemainder-=earned;}
 }
 resize(); addEventListener('resize', resize);
 if(!loadPlayerGameState()) for (let i = 0; i < 7; i++) fishes.push(new Fish());
@@ -1056,7 +1126,8 @@ function frame(t){
     nextSeasonChangeMs += SEASON_LENGTH_MS;
   }
   updateEggs(elapsedMs);
-  if (t - lastInventoryUIT >= 1000){ updateInventoryTimers(); lastInventoryUIT = t; }
+  updatePassiveGold(elapsedMs);
+  if (t - lastInventoryUIT >= 1000){ updateInventoryTimers(); updateShopUI(); lastInventoryUIT = t; }
   if ((rainT -= dt) <= 0){ ripple(R(0, W), R(0, H), R(50, 110), .3); rainT = R(60, 220); }
   mouse.speed *= .9;
   ctx.drawImage(bottom, 0, 0, W, H);
@@ -1113,25 +1184,32 @@ const interactionDock = document.createElement('div');
 interactionDock.style.cssText = 'position:fixed;top:12px;right:12px;z-index:20;display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 24px);font:12px sans-serif;';
 interactionDock.innerHTML = '<button id="plantBtn" type="button">🌿 Seerose setzen</button><button id="bubbleBtn" type="button">🫧 Blasen erzeugen</button>';
 document.body.appendChild(interactionDock);
+const goldBadge=document.createElement('div'); goldBadge.id='goldDisplay'; goldBadge.textContent='💰 150 · +0/min'; interactionDock.appendChild(goldBadge);
 const interactionStyle = document.createElement('style');
 interactionStyle.textContent = '#plantBtn,#bubbleBtn,#followBtn,#releaseBtn{border:1px solid rgba(255,255,255,.28);border-radius:9px;padding:8px 10px;background:rgba(8,35,38,.82);color:#fff;font:12px sans-serif;cursor:pointer;box-shadow:0 2px 9px rgba(0,0,0,.18)} #plantBtn.active,#bubbleBtn.active{background:rgba(47,112,91,.94);border-color:rgba(220,255,220,.65)} #fishInfo{position:fixed;right:12px;top:54px;z-index:19;display:none;width:210px;max-width:calc(100vw - 48px);padding:11px 12px;background:rgba(8,30,34,.88);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:11px;font:12px/1.55 sans-serif;box-shadow:0 5px 18px rgba(0,0,0,.2);pointer-events:auto} #fishInfo .actions{display:flex;gap:6px;margin-top:8px} #fishInfo button{flex:1} #interactionHint{position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:18;display:none;max-width:calc(100vw - 30px);padding:7px 11px;border-radius:8px;background:rgba(8,30,34,.78);color:#fff;font:12px sans-serif;text-align:center;pointer-events:none}';
 document.head.appendChild(interactionStyle);
 const plantBtn = interactionDock.querySelector('#plantBtn'), bubbleBtn = interactionDock.querySelector('#bubbleBtn');
 const gardenBtn = document.createElement('button'); gardenBtn.id='gardenBtn'; gardenBtn.type='button'; gardenBtn.textContent='🪸 Teich gestalten'; interactionDock.appendChild(gardenBtn);
 const playerBtn=document.createElement('button'); playerBtn.id='playerBtn'; playerBtn.type='button'; playerBtn.textContent='👤 '+currentPlayerName; interactionDock.appendChild(playerBtn);
+const shopBtn=document.createElement('button'); shopBtn.id='shopBtn'; shopBtn.type='button'; shopBtn.textContent='🛍️ Deko-Shop'; interactionDock.appendChild(shopBtn);
 const gardenPanel = document.createElement('section'); gardenPanel.id='gardenPanel';
-gardenPanel.innerHTML='<b>Teich gestalten</b><div class="gardenTools"><button type="button" data-decor="grass">🌿 Seegras</button><button type="button" data-decor="rock">🪨 Stein</button><button type="button" data-decor="coral">🪸 Koralle</button><button type="button" data-decor="wood">🪵 Treibholz</button><button type="button" data-decor="erase">⌫ Entfernen</button></div><div class="gardenSize"><label for="gardenSize">Größe <b id="gardenSizeValue">100 %</b></label><input id="gardenSize" type="range" min="40" max="220" step="5" value="100"></div><small>Skaliert das ausgewählte Objekt oder bestimmt die Größe für neue Objekte. Ziehe Deko zum Verschieben.</small>';
+gardenPanel.innerHTML='<b>Teich gestalten</b><div class="gardenTools"><button type="button" data-decor="grass">🌿 Seegras</button><button type="button" data-decor="rock">🪨 Stein</button><button type="button" data-decor="coral">🪸 Koralle</button><button type="button" data-decor="wood">🪵 Treibholz</button><button type="button" data-decor="erase">⌫ Entfernen</button></div><div id="ownedDecorTools"></div><div class="gardenSize"><label for="gardenSize">Größe <b id="gardenSizeValue">100 %</b></label><input id="gardenSize" type="range" min="40" max="220" step="5" value="100"></div><small>Skaliert das ausgewählte Objekt oder bestimmt die Größe für neue Objekte. Ziehe Deko zum Verschieben.</small>';
 document.body.appendChild(gardenPanel);
 const playerPanel=document.createElement('section'); playerPanel.id='playerPanel';
 playerPanel.innerHTML='<b>Spielerprofil</b><label for="playerNameInput">Profilname</label><input id="playerNameInput" maxlength="32" autocomplete="off"><button id="loadPlayerBtn" type="button">Spielstand laden</button><small>Autospeicherung alle 5 Sekunden und beim Verlassen. Profile liegen getrennt in diesem Browser.</small>';
 document.body.appendChild(playerPanel);
+const shopPanel=document.createElement('section'); shopPanel.id='shopPanel';
+shopPanel.innerHTML='<b>🛍️ Deko-Shop</b><div class="shopSummary"><span id="shopGold"></span><span id="shopIncome"></span></div><div id="shopProducts">'+SHOP_DECOR_ITEMS.map(item=>'<article class="shopItem"><div><b>'+item.name+'</b><small>'+item.description+'</small><small data-stock="'+item.id+'">Besitz: 0</small></div><button type="button" data-buy="'+item.id+'">💰 '+item.price+'</button></article>').join('')+'</div><small>Deko aus dem Shop wird deinem Spielerprofil hinzugefügt. Platziere gekaufte Stücke im Gestaltungswerkzeug.</small><small class="rateGuide">Produktion je Fisch/Minute: Häufig +2 · Selten +5 · Episch +12 · Legendär +30 Gold.</small>';
+document.body.appendChild(shopPanel);
 const gardenStyle=document.createElement('style');
 gardenStyle.textContent='#gardenBtn{border:1px solid rgba(255,255,255,.28);border-radius:9px;padding:8px 10px;background:rgba(8,35,38,.82);color:#fff;font:12px sans-serif;cursor:pointer;box-shadow:0 2px 9px rgba(0,0,0,.18)} #gardenBtn.active{background:rgba(47,112,91,.94);border-color:rgba(220,255,220,.65)} #gardenPanel{position:fixed;left:12px;top:12px;z-index:22;display:none;width:226px;max-width:calc(100vw - 24px);padding:11px 12px;border:1px solid rgba(255,255,255,.22);border-radius:11px;background:rgba(5,28,32,.9);color:#fff;font:12px/1.45 sans-serif;box-shadow:0 5px 18px rgba(0,0,0,.28);backdrop-filter:blur(6px);user-select:none} .gardenTools{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:9px 0} .gardenTools button{padding:7px 6px;border:1px solid rgba(255,255,255,.2);border-radius:7px;background:rgba(255,255,255,.08);color:#fff;font:11px sans-serif;cursor:pointer} .gardenTools button.active{background:rgba(75,132,89,.9);border-color:#cbf0ad} #gardenPanel small{display:block;color:rgba(255,255,255,.75)}';
 gardenStyle.textContent+='.gardenSize{margin:8px 0}.gardenSize label{display:flex;justify-content:space-between;align-items:center}.gardenSize input{width:100%;margin:6px 0 0;accent-color:#a7d589}';
 gardenStyle.textContent+='#playerBtn{border:1px solid rgba(255,255,255,.28);border-radius:9px;padding:8px 10px;background:rgba(8,35,38,.82);color:#fff;font:12px sans-serif;cursor:pointer;box-shadow:0 2px 9px rgba(0,0,0,.18)} #playerPanel{position:fixed;right:12px;top:56px;z-index:23;display:none;width:220px;max-width:calc(100vw - 24px);padding:12px;border:1px solid rgba(255,255,255,.22);border-radius:11px;background:rgba(5,28,32,.94);color:#fff;font:12px/1.45 sans-serif;box-shadow:0 5px 18px rgba(0,0,0,.3);backdrop-filter:blur(6px)} #playerPanel label,#playerPanel input,#playerPanel small{display:block;margin-top:8px} #playerPanel input{box-sizing:border-box;width:100%;padding:7px;border:1px solid rgba(255,255,255,.25);border-radius:6px;background:rgba(255,255,255,.1);color:#fff;font:12px sans-serif} #playerPanel button{width:100%;margin-top:8px;padding:8px;border:1px solid rgba(255,255,255,.25);border-radius:7px;background:rgba(65,116,87,.88);color:#fff;font:12px sans-serif;cursor:pointer} #playerPanel small{color:rgba(255,255,255,.72)}';
+gardenStyle.textContent+='#goldDisplay{align-self:center;padding:8px 10px;border:1px solid rgba(255,225,136,.35);border-radius:9px;background:rgba(45,35,10,.82);color:#ffe39a;font:12px sans-serif;white-space:nowrap} #shopBtn{border:1px solid rgba(255,255,255,.28);border-radius:9px;padding:8px 10px;background:rgba(48,39,13,.86);color:#ffe9a8;font:12px sans-serif;cursor:pointer;box-shadow:0 2px 9px rgba(0,0,0,.18)} #shopPanel{position:fixed;right:12px;top:56px;z-index:23;display:none;width:285px;max-width:calc(100vw - 24px);max-height:calc(100vh - 76px);overflow:auto;padding:12px;border:1px solid rgba(255,224,143,.28);border-radius:11px;background:rgba(18,27,25,.96);color:#fff;font:12px/1.45 sans-serif;box-shadow:0 5px 18px rgba(0,0,0,.32);backdrop-filter:blur(6px)} .shopSummary{display:flex;justify-content:space-between;gap:8px;margin:8px 0;color:#ffe39a} #shopProducts{display:grid;gap:7px;margin-bottom:9px} .shopItem{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:rgba(255,255,255,.06)} .shopItem b,.shopItem small{display:block}.shopItem small{margin-top:2px;opacity:.72}.shopItem button{flex:0 0 auto;padding:7px;border:1px solid rgba(255,220,140,.3);border-radius:6px;background:rgba(133,96,26,.5);color:#ffe9a8;font:11px sans-serif;cursor:pointer}.shopItem button:disabled{opacity:.42;cursor:not-allowed} #shopPanel>small{display:block;color:rgba(255,255,255,.72)} .ownedToolsLabel{margin:8px 0 4px;font-size:11px;font-weight:bold;color:#ffe39a}';
 document.head.appendChild(gardenStyle);
 const gardenSize=gardenPanel.querySelector('#gardenSize'), gardenSizeValue=gardenPanel.querySelector('#gardenSizeValue');
 const playerNameInput=playerPanel.querySelector('#playerNameInput'), loadPlayerBtn=playerPanel.querySelector('#loadPlayerBtn');
+const shopGold=shopPanel.querySelector('#shopGold'), shopIncome=shopPanel.querySelector('#shopIncome'), ownedDecorTools=gardenPanel.querySelector('#ownedDecorTools');
 playerNameInput.value=currentPlayerName;
 function updateGardenSizeUI(){
   const value=selectedMapItem?(selectedMapItem.kind==='decor'?selectedMapItem.item.size:(selectedMapItem.item.scale||1)):mapItemSize;
@@ -1139,10 +1217,40 @@ function updateGardenSizeUI(){
 }
 gardenSize.addEventListener('input',e=>{
   mapItemSize=Number(e.target.value)/100;
-  if(selectedMapItem){ if(selectedMapItem.kind==='decor'){selectedMapItem.item.size=mapItemSize;savePondDecor();} else selectedMapItem.item.scale=mapItemSize; }
-  updateGardenSizeUI();
+  if(selectedMapItem){ if(selectedMapItem.kind==='decor')selectedMapItem.item.size=mapItemSize; else selectedMapItem.item.scale=mapItemSize; }
+  updateGardenSizeUI(); saveGameState();
 });
-playerBtn.addEventListener('click',()=>{ playerNameInput.value=currentPlayerName; playerPanel.style.display=playerPanel.style.display==='none'?'block':'none'; });
+let ownedDecorSignature='';
+function renderOwnedDecorTools(){
+  const signature=SHOP_DECOR_ITEMS.map(item=>item.id+':'+(shopInventory[item.id]||0)).join('|');
+  if(signature===ownedDecorSignature) return; ownedDecorSignature=signature;
+  const owned=SHOP_DECOR_ITEMS.filter(item=>(shopInventory[item.id]||0)>0);
+  ownedDecorTools.innerHTML=owned.length?'<div class="ownedToolsLabel">Gekaufte Deko · zum Platzieren</div><div class="gardenTools">'+owned.map(item=>'<button type="button" data-owned-decor="'+item.id+'">'+item.name+' ×'+shopInventory[item.id]+'</button>').join('')+'</div>':'<small>Noch keine Shop-Deko gekauft.</small>';
+  ownedDecorTools.querySelectorAll('[data-owned-decor]').forEach(tool=>tool.addEventListener('click',()=>{
+    decorType=tool.dataset.ownedDecor; pondEditMode=true; plantMode=false; bubbleMode=false; updateInteractionUI();
+    const item=SHOP_DECOR_ITEMS.find(x=>x.id===decorType); setInteractionHint(item.name+' ausgewählt. Setze es im Wasser.');
+  }));
+}
+function updateShopUI(){
+  const rate=goldPerMinute(), balance=Math.floor(gold);
+  goldBadge.textContent='💰 '+balance.toLocaleString('de-DE')+' · +'+rate+'/min';
+  shopGold.textContent='💰 '+balance.toLocaleString('de-DE')+' Gold'; shopIncome.textContent='+'+rate+' / min';
+  for(const item of SHOP_DECOR_ITEMS){
+    const stock=shopPanel.querySelector('[data-stock="'+item.id+'"]'), buy=shopPanel.querySelector('[data-buy="'+item.id+'"]');
+    stock.textContent='Besitz: '+(shopInventory[item.id]||0); buy.disabled=gold<item.price;
+  }
+  renderOwnedDecorTools();
+}
+shopPanel.addEventListener('pointerdown',e=>e.stopPropagation());
+shopPanel.querySelectorAll('[data-buy]').forEach(button=>button.addEventListener('click',()=>{
+  const item=SHOP_DECOR_ITEMS.find(x=>x.id===button.dataset.buy); if(!item) return;
+  if(gold<item.price){setInteractionHint('Dir fehlen noch '+(item.price-Math.floor(gold))+' Gold.');return;}
+  gold-=item.price; shopInventory[item.id]=(shopInventory[item.id]||0)+1; updateShopUI(); saveGameState();
+  setInteractionHint(item.name+' gekauft. Du kannst es jetzt im Gestaltungswerkzeug platzieren.');
+}));
+updateShopUI();
+playerBtn.addEventListener('click',()=>{ playerNameInput.value=currentPlayerName; playerPanel.style.display=playerPanel.style.display==='none'?'block':'none'; shopPanel.style.display='none'; });
+shopBtn.addEventListener('click',()=>{ shopPanel.style.display=shopPanel.style.display==='none'?'block':'none'; playerPanel.style.display='none'; updateShopUI(); });
 playerPanel.addEventListener('pointerdown',e=>e.stopPropagation());
 loadPlayerBtn.addEventListener('click',()=>{
   const name=playerNameInput.value.trim().slice(0,32);
@@ -1155,7 +1263,7 @@ loadPlayerBtn.addEventListener('click',()=>{
   const restored=loadPlayerGameState();
   if(!restored) for(let i=0;i<7;i++) fishes.push(new Fish());
   playerBtn.textContent='👤 '+currentPlayerName; playerPanel.style.display='none';
-  updateInventoryUI(); updateGardenSizeUI(); updateInteractionUI(); saveGameState();
+  updateInventoryUI(); updateGardenSizeUI(); updateShopUI(); updateInteractionUI(); saveGameState();
   setInteractionHint('Spielstand für „'+currentPlayerName+'“ geladen und automatisch gespeichert.');
 });
 interactionDock.addEventListener('pointerdown', e => e.stopPropagation());
@@ -1220,7 +1328,7 @@ addEventListener('drop', e => {
 });
 function updateInventoryUI(){
   eggSlots.innerHTML = eggInventory.length ? eggInventory.map(e => '<div class="invCard eggCard" style="--rarity:' + (RARITIES.find(r => r.name === e.rarity) || RARITIES[0]).color + '"><b>🥚 ' + e.species + '</b><span>' + e.rarity + '</span><small data-egg-timer="' + e.id + '"></small></div>').join('') : '<span class="invEmpty">Noch keine Eier gesammelt</span>';
-  fishSlots.innerHTML = fishInventory.length ? fishInventory.map(f => '<div class="invCard fishCard" draggable="true" data-fish-id="' + f.id + '" style="--rarity:' + (RARITIES.find(r => r.name === f.rarity) || RARITIES[0]).color + '"><b>🐟 ' + f.species + '</b><span>' + f.rarity + '</span><small>Ziehen</small></div>').join('') : '<span class="invEmpty">Hier erscheinen Fische nach 5 Minuten</span>';
+  fishSlots.innerHTML = fishInventory.length ? fishInventory.map(f => '<div class="invCard fishCard" draggable="true" data-fish-id="' + f.id + '" style="--rarity:' + (RARITIES.find(r => r.name === f.rarity) || RARITIES[0]).color + '"><b>🐟 ' + f.species + '</b><span>' + f.rarity + '</span><small>+' + (RARITY_GOLD_PER_MINUTE[f.rarity]||0) + ' Gold/min · Ziehen</small></div>').join('') : '<span class="invEmpty">Hier erscheinen Fische nach 5 Minuten</span>';
   inventoryCount.textContent = eggInventory.length + ' Eier · ' + fishInventory.length + ' Fische';
   updateInventoryTimers();
 }
@@ -1242,6 +1350,7 @@ function updateInteractionUI(){
   gardenBtn.classList.toggle('active', pondEditMode); gardenPanel.style.display=pondEditMode?'block':'none';
   gardenBtn.textContent=pondEditMode?'✕ Gestalten beenden':'🪸 Teich gestalten';
   gardenPanel.querySelectorAll('[data-decor]').forEach(tool=>tool.classList.toggle('active',pondEditMode&&tool.dataset.decor===decorType));
+  ownedDecorTools.querySelectorAll('[data-owned-decor]').forEach(tool=>tool.classList.toggle('active',pondEditMode&&tool.dataset.ownedDecor===decorType));
   plantBtn.textContent = plantMode ? '✕ Pflanzmodus' : '🌿 Seerose setzen';
   bubbleBtn.textContent = bubbleMode ? '✕ Blasenmodus' : '🫧 Blasen erzeugen';
   if (!selectedFish || selectedFish.dead){ fishInfo.style.display = 'none'; return; }
@@ -1252,7 +1361,7 @@ function updateFishInfo(){
   if (selectedFish && selectedFish.dead){ selectedFish = null; followSelected = false; updateInteractionUI(); }
   if (selectedFish && !selectedFish.dead){
     const mins = Math.floor(selectedFish.ageMs / 60000), secs = Math.floor((selectedFish.ageMs % 60000) / 1000);
-    fishInfoText.innerHTML = '<b>🐟 ' + selectedFish.species.name + ' #' + selectedFish.id + '</b><br>Art: ' + selectedFish.species.name + '<br>Seltenheit: <span style="color:' + selectedFish.rarity.color + '">' + selectedFish.rarity.name + '</span><br>Alter: ' + mins + ':' + String(secs).padStart(2, '0') + ' min<br>Futteraufnahme: ' + selectedFish.foodLoad.toFixed(1) + ' / ' + OVERFEED_LIMIT + '<br>Status: ' + (followSelected ? 'folgt deinem Zeiger' : 'schwimmt frei');
+    fishInfoText.innerHTML = '<b>🐟 ' + selectedFish.species.name + ' #' + selectedFish.id + '</b><br>Art: ' + selectedFish.species.name + '<br>Seltenheit: <span style="color:' + selectedFish.rarity.color + '">' + selectedFish.rarity.name + '</span><br>Produktion: +' + (RARITY_GOLD_PER_MINUTE[selectedFish.rarity.name]||0) + ' Gold/min<br>Alter: ' + mins + ':' + String(secs).padStart(2, '0') + ' min<br>Futteraufnahme: ' + selectedFish.foodLoad.toFixed(1) + ' / ' + OVERFEED_LIMIT + '<br>Status: ' + (followSelected ? 'folgt deinem Zeiger' : 'schwimmt frei');
   }
   if (hintUntil && performance.now() > hintUntil){ interactionHint.style.display = 'none'; hintUntil = 0; }
 }
