@@ -510,6 +510,9 @@ class Fish {
     bodyShade.addColorStop(.38,'rgba(255,255,255,.035)');
     bodyShade.addColorStop(1,'rgba(4,20,28,.25)');
     ctx.fillStyle=bodyShade; ctx.fillRect(0,0,W,H);
+    const gloss=ctx.createRadialGradient(P[3].x-s*.12,P[3].y-s*.36,s*.04,P[4].x-s*.08,P[4].y-s*.2,s*1.18);
+    gloss.addColorStop(0,'rgba(248,255,252,.2)'); gloss.addColorStop(.32,'rgba(218,248,241,.075)'); gloss.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.globalCompositeOperation='screen'; ctx.fillStyle=gloss; ctx.fillRect(0,0,W,H); ctx.globalCompositeOperation='source-over';
     if(!tex){
       for(let i=1;i<14;i++) for(let k=-4;k<=4;k++){
         const p=P[i], side=k/4, puff=this.kind==='puffer'?1+this.inflate*1.05:1, c=nrm(p,1,s*this.shapeProf[i]*fat*puff*side*.84);
@@ -563,14 +566,14 @@ class Fish {
     this.path(O); ctx.strokeStyle = 'rgba(40,70,85,.34)'; ctx.lineWidth = s * .5; ctx.stroke(); // Randschatten
     ctx.restore();
     if (this.kind === 'shark'){
-      const a = P[4], b = P[7], tipFin = nrm(P[5], 1, s * .95);
+      const a = P[4], b = P[7], tipFin = nrm(P[5], -1, s * .95);
       ctx.fillStyle = '#405d6a'; ctx.strokeStyle = 'rgba(24,42,52,.55)'; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(tipFin.x, tipFin.y); ctx.lineTo(b.x, b.y); ctx.closePath(); ctx.fill(); ctx.stroke();
-      const smallA = P[10], smallB = P[12], smallTip = nrm(P[10], 1, s * .42);
+      const smallA = P[10], smallB = P[12], smallTip = nrm(P[10], -1, s * .42);
       ctx.beginPath(); ctx.moveTo(smallA.x, smallA.y); ctx.lineTo(smallTip.x, smallTip.y); ctx.lineTo(smallB.x, smallB.y); ctx.closePath(); ctx.fill(); ctx.stroke();
     }
     if (this.kind === 'swordfish'){
-      const rootA=nrm(P[3],1,s*this.shapeProf[3]*fat*.72), rootB=nrm(P[9],1,s*this.shapeProf[9]*fat*.72), sail=nrm(P[5],1,s*1.42);
+      const rootA=nrm(P[3],-1,s*this.shapeProf[3]*fat*.72), rootB=nrm(P[9],-1,s*this.shapeProf[9]*fat*.72), sail=nrm(P[5],-1,s*1.42);
       const sailFill=ctx.createLinearGradient(rootA.x,rootA.y,sail.x,sail.y); sailFill.addColorStop(0,'rgba(86,119,132,.88)'); sailFill.addColorStop(1,'rgba(190,215,218,.42)');
       ctx.fillStyle=sailFill; ctx.strokeStyle='rgba(45,75,89,.58)'; ctx.lineWidth=1;
       ctx.beginPath(); ctx.moveTo(rootA.x,rootA.y); ctx.quadraticCurveTo(sail.x,sail.y,rootB.x,rootB.y); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -583,10 +586,22 @@ class Fish {
       ctx.strokeStyle='rgba(22,31,41,.75)'; ctx.lineWidth=s*.3; ctx.beginPath(); ctx.moveTo(left.x,left.y); ctx.lineTo(right.x,right.y); ctx.stroke();
       ctx.strokeStyle='#f4d234'; ctx.lineWidth=s*.19; ctx.beginPath(); ctx.moveTo(left.x,left.y); ctx.lineTo(right.x,right.y); ctx.stroke(); ctx.restore();
     }
+    if (!['puffer','shark','swordfish'].includes(this.kind)){
+      const finHeight=({betta:.48,goldfish:.34,clown:.22,tang:.2,salmon:.25,lantern:.16})[this.kind]||.25;
+      const edge=i=>s*this.shapeProf[i]*.88*fat;
+      const rootA=nrm(P[3],-1,edge(3)*.82), rootB=nrm(P[9],-1,edge(9)*.82), peak=nrm(P[5],-1,edge(5)+s*finHeight);
+      const c1=nrm(P[4],-1,edge(4)+s*finHeight*.7), c2=nrm(P[7],-1,edge(7)+s*finHeight*.45);
+      const membrane=ctx.createLinearGradient(rootA.x,rootA.y,peak.x,peak.y);
+      membrane.addColorStop(0,hexA(fc,.78)); membrane.addColorStop(.55,hexA(fc,.56)); membrane.addColorStop(1,hexA(fc,.2));
+      ctx.fillStyle=membrane; ctx.strokeStyle='rgba(35,58,65,.34)'; ctx.lineWidth=Math.max(.7,s*.018); ctx.beginPath();
+      ctx.moveTo(rootA.x,rootA.y); ctx.quadraticCurveTo(c1.x,c1.y,peak.x,peak.y); ctx.quadraticCurveTo(c2.x,c2.y,rootB.x,rootB.y); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle='rgba(235,251,245,.34)'; ctx.lineWidth=Math.max(.55,s*.012);
+      for(const i of [4,5,6,7,8]){ const base=nrm(P[i],-1,edge(i)*.8), tip=nrm(P[i],-1,edge(i)+s*finHeight*(i===5?1:.54)); ctx.beginPath(); ctx.moveTo(base.x,base.y); ctx.quadraticCurveTo((base.x+tip.x)*.52,(base.y+tip.y)*.52-s*.025,tip.x,tip.y); ctx.stroke(); }
+    }
     const dorsalStart = this.kind === 'puffer' ? 8 : 3, dorsalEnd = this.kind === 'puffer' ? 10 : 9;
     const dorsalScale = this.kind === 'shark' ? 1.65 : this.kind === 'puffer' ? .48 : this.kind === 'betta' ? 1.28 : this.kind === 'tang' ? 1.18 : this.kind === 'goldfish' ? .82 : 1;
     for (let i = dorsalStart; i <= dorsalEnd; i++){
-      const A = P[i], B = P[i + 1], w = s * .3 * dorsalScale * (1 - Math.abs(i - 6.2) / 4.5), e = nrm(A, 1, s * .4 * dorsalScale);
+      const A = P[i], B = P[i + 1], w = s * .3 * dorsalScale * (1 - Math.abs(i - 6.2) / 4.5), e = nrm(A, -1, s * .4 * dorsalScale);
       ctx.strokeStyle = this.dark ? 'rgba(22,22,30,.72)' : 'rgba(215,225,230,.6)'; ctx.lineWidth = Math.max(w, 1); ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
       ctx.strokeStyle = this.dark ? 'rgba(22,22,30,.3)' : 'rgba(215,225,230,.3)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(e.x, e.y); ctx.stroke();
     }
@@ -648,9 +663,9 @@ class Fish {
       }
     }
     if (this.kind === 'lantern'){
-      const root = nrm(h, 1, s * .22), bulb = { x: root.x + Math.cos(h.ang) * s * .36 + Math.cos(h.ang + Math.PI / 2) * s * .88, y: root.y + Math.sin(h.ang) * s * .36 + Math.sin(h.ang + Math.PI / 2) * s * .88 };
+      const root = nrm(h, -1, s * .22), bulb = { x: root.x + Math.cos(h.ang) * s * .36 + Math.cos(h.ang - Math.PI / 2) * s * .88, y: root.y + Math.sin(h.ang) * s * .36 + Math.sin(h.ang - Math.PI / 2) * s * .88 };
       ctx.strokeStyle = 'rgba(99,221,244,.9)'; ctx.lineWidth = Math.max(1.2, s * .035); ctx.beginPath(); ctx.moveTo(root.x, root.y);
-      ctx.quadraticCurveTo(root.x + Math.cos(h.ang + Math.PI / 2) * s * .78, root.y + Math.sin(h.ang + Math.PI / 2) * s * .78, bulb.x, bulb.y); ctx.stroke();
+      ctx.quadraticCurveTo(root.x + Math.cos(h.ang - Math.PI / 2) * s * .78, root.y + Math.sin(h.ang - Math.PI / 2) * s * .78, bulb.x, bulb.y); ctx.stroke();
       ctx.shadowColor = '#73edff'; ctx.shadowBlur = 12; ctx.fillStyle = '#9af4ff'; ctx.beginPath(); ctx.arc(bulb.x, bulb.y, Math.max(2.5, s * .11), 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
       ctx.fillStyle = 'rgba(155,245,255,.45)'; ctx.beginPath(); ctx.arc(bulb.x, bulb.y, Math.max(5, s * .2), 0, Math.PI * 2); ctx.fill();
     }
