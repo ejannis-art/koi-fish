@@ -553,17 +553,44 @@ function drawSelectedFish(t){
 }
 
 /* ---------- Eingabe ---------- */
+let dragPad = null, fishDrag = null;
 addEventListener('pointermove', e => {
   mouse.speed = Math.hypot(e.clientX - mouse.x, e.clientY - mouse.y);
   mouse.x = e.clientX; mouse.y = e.clientY; mouse.last = performance.now();
   if (dragPad){ const nx = mouse.x - dragPad.ox, ny = mouse.y - dragPad.oy; dragPad.vx = (nx - dragPad.x) * .5; dragPad.vy = (ny - dragPad.y) * .5; dragPad.x = nx; dragPad.y = ny; dragPad.t = performance.now(); return; }
+  if (fishDrag && fishDrag.pointerId === e.pointerId){
+    if (!fishDrag.active && Math.hypot(mouse.x - fishDrag.startX, mouse.y - fishDrag.startY) > 8){
+      fishDrag.active = true; setInteractionHint('Ziehe den Koi auf das Inventar, um ihn zurückzulegen.');
+    }
+    if (fishDrag.active){
+      const dx = mouse.x - fishDrag.lastX, dy = mouse.y - fishDrag.lastY;
+      for (const p of fishDrag.fish.seg){ p.x += dx; p.y += dy; }
+      fishDrag.lastX = mouse.x; fishDrag.lastY = mouse.y;
+      const box = inventoryPanel.getBoundingClientRect();
+      inventoryPanel.classList.toggle('dropTarget', mouse.x >= box.left && mouse.x <= box.right && mouse.y >= box.top && mouse.y <= box.bottom);
+      document.body.style.cursor = 'grabbing'; return;
+    }
+  }
   document.body.style.cursor = hitPad(mouse.x, mouse.y) ? 'grab' : (hitEgg(mouse.x, mouse.y) || hitFish(mouse.x, mouse.y) ? 'pointer' : 'default');
   if (mouse.speed > 45){ ripple(mouse.x, mouse.y, 70, .35); fishes.forEach(f => { if (!(f === selectedFish && followSelected) && Math.hypot(f.seg[0].x - mouse.x, f.seg[0].y - mouse.y) < 160) f.scarePt(mouse.x, mouse.y); }); }
 });
-let dragPad = null;
 function hitPad(x, y){ if (season === 3) return null; for (let i = pads.length - 1; i >= 0; i--){ const p = pads[i]; if (Math.hypot(x - p.cx, y - p.cy) < p.r) return p; } return null; }
 function dropPad(){ if (!dragPad) return; if (performance.now() - dragPad.t > 80) dragPad.vx = dragPad.vy = 0; ripple(dragPad.cx, dragPad.cy, dragPad.r * 1.6, .4); dragPad = null; document.body.style.cursor = 'default'; }
 addEventListener('pointerup', dropPad); addEventListener('pointercancel', dropPad); addEventListener('mouseup', dropPad);
+function finishFishDrag(e){
+  if (!fishDrag || fishDrag.pointerId !== e.pointerId) return;
+  const drag = fishDrag; fishDrag = null; inventoryPanel.classList.remove('dropTarget'); document.body.style.cursor = 'default';
+  if (!drag.active || e.type === 'pointercancel') return;
+  const box = inventoryPanel.getBoundingClientRect();
+  if (e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom) return;
+  const index = fishes.indexOf(drag.fish); if (index < 0 || drag.fish.dead) return;
+  fishes.splice(index, 1);
+  if (selectedFish === drag.fish){ selectedFish = null; followSelected = false; updateInteractionUI(); }
+  fishInventory.push({ id: drag.fish.id, species: drag.fish.species.name, rarity: drag.fish.rarity.name });
+  ripple(drag.fish.seg[0].x, drag.fish.seg[0].y, 75, .5); updateInventoryUI();
+  setInteractionHint(drag.fish.rarity.name + 'er ' + drag.fish.species.name + ' ist wieder im Inventar.');
+}
+addEventListener('pointerup', finishFishDrag); addEventListener('pointercancel', finishFishDrag);
 addEventListener('contextmenu', e => e.preventDefault());
 function scareAll(x, y){ ripple(x, y, 240, .8); ripple(x, y, 140, .6); fishes.forEach(f => f.scarePt(x, y)); }
 addEventListener('pointerdown', e => {
@@ -577,6 +604,8 @@ addEventListener('pointerdown', e => {
   const koi = hitFish(e.clientX, e.clientY);
   if (koi){
     selectedFish = koi; followSelected = false;
+    fishDrag = { fish: koi, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY, active: false };
+    cv.setPointerCapture(e.pointerId);
     ripple(koi.seg[0].x, koi.seg[0].y, 72, .65); updateInteractionUI(); return;
   }
   const hp = hitPad(e.clientX, e.clientY);
@@ -658,7 +687,7 @@ function frame(t){
   ctx.globalCompositeOperation = 'source-over';
   drawWaterSurface(t);
   for (let i = fishes.length - 1; i >= 0; i--){
-    const fish = fishes[i]; fish.update(dt, elapsedMs);
+    const fish = fishes[i]; if (!(fishDrag && fishDrag.active && fishDrag.fish === fish)) fish.update(dt, elapsedMs);
     if (fish.dead && fish.deathMs >= 2600) fishes.splice(i, 1);
   }
   updateFishInfo();
@@ -777,6 +806,7 @@ function updateInventoryTimers(){
 }
 inventoryPanel.addEventListener('dragstart', e => { if (e.target.closest('[data-fish-id]')) setInteractionHint('Ziehe den Koi an eine freie Stelle im Wasser.'); });
 interactionStyle.textContent += ' #pondInventory{position:fixed;left:50%;bottom:48px;transform:translateX(-50%);z-index:21;width:min(540px,calc(100vw - 24px));min-width:min(260px,calc(100vw - 24px));min-height:135px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;resize:both;padding:9px 11px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(5,28,32,.86);color:#fff;font:11px/1.35 sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.25);backdrop-filter:blur(5px)} .invHead{display:flex;justify-content:space-between;align-items:center;font-size:13px;cursor:move;touch-action:none;user-select:none}.invHead span,.invEmpty{opacity:.7}.invLabel{margin-top:6px;opacity:.8}.invSlots{display:flex;gap:6px;min-height:34px;overflow-x:auto;padding:4px 0}.invCard{flex:0 0 auto;display:flex;flex-direction:column;gap:2px;min-width:82px;padding:5px 7px;border:1px solid var(--rarity);border-radius:8px;background:rgba(255,255,255,.08);color:#fff}.invCard span{color:var(--rarity)} .invCard small{font-size:10px;opacity:.75}.fishCard{cursor:grab;touch-action:none}.fishCard:active{cursor:grabbing} .invEmpty{padding:7px 2px}';
+interactionStyle.textContent += ' #pondInventory.dropTarget{border-color:#83f0cb;box-shadow:0 0 0 3px rgba(131,240,203,.35),0 4px 18px rgba(0,0,0,.3)}';
 updateInventoryUI();
 let hintUntil = 0;
 function setInteractionHint(message){ interactionHint.textContent = message; interactionHint.style.display = 'block'; hintUntil = performance.now() + 2600; }
