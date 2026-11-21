@@ -21,7 +21,7 @@ const mouse = { x: -999, y: -999, last: 0, speed: 0 };
 const ripples = [], food = [], pads = [], motes = [], fall = [], eggs = [], eggInventory = [], fishInventory = [], bubbles = [];
 let nextFishId = 1, selectedFish = null, followSelected = false, plantMode = false, bubbleMode = false;
 const POND_DECOR_KEY = 'koiPondDecorV1', pondDecor = [];
-let pondEditMode = false, decorType = 'grass', decorDrag = null;
+let pondEditMode = false, decorType = 'grass', decorDrag = null, selectedMapItem = null, mapItemSize = 1;
 try {
   const savedDecor = JSON.parse(localStorage.getItem(POND_DECOR_KEY) || '[]');
   if (Array.isArray(savedDecor)) pondDecor.push(...savedDecor.filter(d => d && ['grass','rock','coral','wood'].includes(d.type) && Number.isFinite(d.x) && Number.isFinite(d.y)));
@@ -636,31 +636,32 @@ function ripple(x, y, max = 90, a = .5){ ripples.push({ x, y, r: 2, max, a }); }
 function makePads(){
   pads.length = 0;
   const n = Math.max(4, Math.round(W * H / 200000));
-  for (let i = 0; i < n; i++) pads.push({ x: R(90, W - 90), y: R(90, H - 90), r: R(34, 62), rot: R(0, 6), ph: R(0, 6), fr: Math.random(), vx: 0, vy: 0, cx: 0, cy: 0, flower: Math.random() < .4 });
+  for (let i = 0; i < n; i++) pads.push({ x: R(90, W - 90), y: R(90, H - 90), r: R(34, 62), scale: 1, rot: R(0, 6), ph: R(0, 6), fr: Math.random(), vx: 0, vy: 0, cx: 0, cy: 0, flower: Math.random() < .4 });
 }
 function drawPads(t){
   if (season === 3) return;
   for (const p of pads){
     if (p !== dragPad){ p.x = clamp(p.x + p.vx, 0, W); p.y = clamp(p.y + p.vy, 0, H); p.vx *= .96; p.vy *= .96; }
-    const x = p.x + Math.sin(t * .0001 + p.ph) * 6, y = p.y + Math.sin(t * .0008 + p.ph) * 1.5; p.cx = x; p.cy = y;
-    ctx.fillStyle = 'rgba(0,15,20,.3)'; ctx.beginPath(); ctx.arc(x + 10, y + 16, p.r, 0, 7); ctx.fill();
-    const g = ctx.createRadialGradient(x - p.r * .3, y - p.r * .3, 2, x, y, p.r);
+    const x = p.x + Math.sin(t * .0001 + p.ph) * 6, y = p.y + Math.sin(t * .0008 + p.ph) * 1.5, r = p.r * (p.scale || 1); p.cx = x; p.cy = y;
+    ctx.fillStyle = 'rgba(0,15,20,.3)'; ctx.beginPath(); ctx.arc(x + 10, y + 16, r, 0, 7); ctx.fill();
+    const g = ctx.createRadialGradient(x - r * .3, y - r * .3, 2, x, y, r);
     g.addColorStop(0, SP.pad[0]); g.addColorStop(.7, SP.pad[1]); g.addColorStop(1, SP.pad[2]);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, p.r, p.rot + .25, p.rot + 6.03); ctx.closePath(); ctx.fill();
-    const sheen=ctx.createRadialGradient(x-p.r*.28,y-p.r*.35,1,x,y,p.r);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, p.rot + .25, p.rot + 6.03); ctx.closePath(); ctx.fill();
+    const sheen=ctx.createRadialGradient(x-r*.28,y-r*.35,1,x,y,r);
     sheen.addColorStop(0,'rgba(235,255,205,.20)'); sheen.addColorStop(.55,'rgba(180,235,150,.035)'); sheen.addColorStop(1,'rgba(0,30,12,.16)');
-    ctx.fillStyle=sheen; ctx.beginPath(); ctx.moveTo(x,y); ctx.arc(x,y,p.r,p.rot+.25,p.rot+6.03); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=sheen; ctx.beginPath(); ctx.moveTo(x,y); ctx.arc(x,y,r,p.rot+.25,p.rot+6.03); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(190,245,170,.27)'; ctx.lineWidth = .85;
-    for (let k = 0; k < 11; k++){ const a = p.rot + .6 + k * .56; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x+Math.cos(a)*p.r*.43,y+Math.sin(a)*p.r*.43,x + Math.cos(a) * p.r * .92, y + Math.sin(a) * p.r * .92); ctx.stroke(); }
-    ctx.strokeStyle = 'rgba(200,255,200,.5)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, p.r - .5, p.rot + 1.2, p.rot + 2.4); ctx.stroke();
+    for (let k = 0; k < 11; k++){ const a = p.rot + .6 + k * .56; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x+Math.cos(a)*r*.43,y+Math.sin(a)*r*.43,x + Math.cos(a) * r * .92, y + Math.sin(a) * r * .92); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(200,255,200,.5)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r - .5, p.rot + 1.2, p.rot + 2.4); ctx.stroke();
     if (p.fr < SP.flower){
       for (const [rad, rot, c1] of [[.34, 0, '#ff9cc4'], [.26, Math.PI / 8, '#ffc4dc'], [.17, 0, '#fff0f6']])
         for (let k = 0; k < 8; k++){
           ctx.save(); ctx.translate(x, y); ctx.rotate(k * Math.PI / 4 + rot);
-          ctx.fillStyle = c1; ctx.beginPath(); ctx.ellipse(p.r * rad, 0, p.r * rad, p.r * .12, 0, 0, 7); ctx.fill(); ctx.restore();
+          ctx.fillStyle = c1; ctx.beginPath(); ctx.ellipse(r * rad, 0, r * rad, r * .12, 0, 0, 7); ctx.fill(); ctx.restore();
         }
-      ctx.fillStyle = '#ffd84a'; ctx.beginPath(); ctx.arc(x, y, p.r * .08, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ffd84a'; ctx.beginPath(); ctx.arc(x, y, r * .08, 0, 7); ctx.fill();
     }
+    if(pondEditMode && selectedMapItem && selectedMapItem.kind==='pad' && selectedMapItem.item===p){ ctx.strokeStyle='rgba(227,255,190,.95)'; ctx.lineWidth=2; ctx.setLineDash([5,4]); ctx.beginPath(); ctx.arc(x,y,r+5,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]); }
   }
 }
 function decorSize(d){ return Math.max(18, Math.min(W,H) * .043 * (Number.isFinite(d.size) ? d.size : 1)); }
@@ -714,7 +715,7 @@ function drawPondDecor(t){
       ctx.lineWidth=s*.025; ctx.strokeStyle='rgba(220,179,116,.42)'; ctx.beginPath(); ctx.moveTo(-s*.72,-s*.11); ctx.quadraticCurveTo(-s*.12,-s*.37,s*.63,-s*.06); ctx.stroke();
       ctx.strokeStyle='rgba(30,25,18,.65)'; ctx.lineWidth=s*.035; ctx.beginPath(); ctx.ellipse(-s*.48,-s*.12,s*.09,s*.055,-.15,0,Math.PI*2); ctx.stroke();
     }
-    if (pondEditMode && decorType !== 'erase' && decorDrag && decorDrag.item === d){
+    if (pondEditMode && selectedMapItem && selectedMapItem.kind==='decor' && selectedMapItem.item === d){
       ctx.strokeStyle='rgba(227,255,190,.9)'; ctx.lineWidth=1.5; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.ellipse(0,-s*.3,s*.88,s*.92,0,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
     }
     ctx.restore();
@@ -851,12 +852,12 @@ addEventListener('pointermove', e => {
   document.body.style.cursor = hitPad(mouse.x, mouse.y) ? 'grab' : (hitEgg(mouse.x, mouse.y) || hitFish(mouse.x, mouse.y) ? 'pointer' : 'default');
   if (mouse.speed > 45){ ripple(mouse.x, mouse.y, 70, .35); fishes.forEach(f => { if (!(f === selectedFish && followSelected) && Math.hypot(f.seg[0].x - mouse.x, f.seg[0].y - mouse.y) < 160) f.scarePt(mouse.x, mouse.y); }); }
 });
-function hitPad(x, y){ if (season === 3) return null; for (let i = pads.length - 1; i >= 0; i--){ const p = pads[i]; if (Math.hypot(x - p.cx, y - p.cy) < p.r) return p; } return null; }
+function hitPad(x, y){ if (season === 3) return null; for (let i = pads.length - 1; i >= 0; i--){ const p = pads[i]; if (Math.hypot(x - p.cx, y - p.cy) < p.r * (p.scale || 1)) return p; } return null; }
 function hitDecor(x,y){
   for(let i=pondDecor.length-1;i>=0;i--){ const d=pondDecor[i], px=d.x*W, py=d.y*H, s=decorSize(d); if(Math.abs(x-px)<s*.9 && y>py-s*1.75 && y<py+s*.35) return d; }
   return null;
 }
-function dropPad(){ if (!dragPad) return; if (performance.now() - dragPad.t > 80) dragPad.vx = dragPad.vy = 0; ripple(dragPad.cx, dragPad.cy, dragPad.r * 1.6, .4); dragPad = null; document.body.style.cursor = 'default'; }
+function dropPad(){ if (!dragPad) return; if (performance.now() - dragPad.t > 80) dragPad.vx = dragPad.vy = 0; ripple(dragPad.cx, dragPad.cy, dragPad.r * (dragPad.scale || 1) * 1.6, .4); dragPad = null; document.body.style.cursor = 'default'; }
 addEventListener('pointerup', dropPad); addEventListener('pointercancel', dropPad); addEventListener('mouseup', dropPad);
 function finishDecorDrag(e){
   if(!decorDrag || decorDrag.pointerId!==e.pointerId) return;
@@ -890,14 +891,21 @@ addEventListener('pointerdown', e => {
   }
   if(pondEditMode){
     const hit=hitDecor(e.clientX,e.clientY);
+    const padHit=hitPad(e.clientX,e.clientY);
     if(decorType==='erase'){
-      if(hit){ pondDecor.splice(pondDecor.indexOf(hit),1); savePondDecor(); ripple(e.clientX,e.clientY,45,.35); setInteractionHint('Dekoration entfernt. Werkzeug bleibt aktiv.'); }
-      else setInteractionHint('Tippe auf ein Dekorationselement, um es zu entfernen.');
+      if(hit){ pondDecor.splice(pondDecor.indexOf(hit),1); selectedMapItem=null; savePondDecor(); ripple(e.clientX,e.clientY,45,.35); setInteractionHint('Dekoration entfernt. Werkzeug bleibt aktiv.'); }
+      else if(padHit){ pads.splice(pads.indexOf(padHit),1); selectedMapItem=null; ripple(e.clientX,e.clientY,45,.35); setInteractionHint('Seerose entfernt. Werkzeug bleibt aktiv.'); }
+      else setInteractionHint('Tippe auf ein Deko-Element oder eine Seerose, um es zu entfernen.');
+      updateGardenSizeUI();
       return;
     }
-    if(hit){ decorDrag={item:hit,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,moved:false}; cv.setPointerCapture(e.pointerId); document.body.style.cursor='grab'; return; }
-    const item={type:decorType,x:clamp(e.clientX/W,.025,.975),y:clamp(e.clientY/H,.035,.965),size:R(.82,1.18),phase:R(0,Math.PI*2),seed:Math.floor(R(1,1000000))};
-    pondDecor.push(item); savePondDecor(); ripple(e.clientX,e.clientY,55,.42);
+    if(hit){ selectedMapItem={kind:'decor',item:hit}; updateGardenSizeUI(); decorDrag={item:hit,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,moved:false}; cv.setPointerCapture(e.pointerId); document.body.style.cursor='grab'; return; }
+    if(padHit){
+      selectedMapItem={kind:'pad',item:padHit}; updateGardenSizeUI(); dragPad=padHit; padHit.ox=e.clientX-padHit.x; padHit.oy=e.clientY-padHit.y; padHit.vx=padHit.vy=0; padHit.t=performance.now();
+      cv.setPointerCapture(e.pointerId); document.body.style.cursor='grab'; return;
+    }
+    const item={type:decorType,x:clamp(e.clientX/W,.025,.975),y:clamp(e.clientY/H,.035,.965),size:mapItemSize,phase:R(0,Math.PI*2),seed:Math.floor(R(1,1000000))};
+    pondDecor.push(item); selectedMapItem={kind:'decor',item}; updateGardenSizeUI(); savePondDecor(); ripple(e.clientX,e.clientY,55,.42);
     const label=({grass:'Seegras',rock:'Stein',coral:'Koralle',wood:'Treibholz'})[decorType]||'Dekoration';
     setInteractionHint(label+' hinzugefügt. Das Werkzeug bleibt aktiv, bis du es ausschaltest.'); return;
   }
@@ -912,7 +920,7 @@ addEventListener('pointerdown', e => {
   if (hp && !plantMode && !bubbleMode && !pondEditMode){ dragPad = hp; hp.ox = e.clientX - hp.x; hp.oy = e.clientY - hp.y; hp.vx = hp.vy = 0; hp.t = performance.now(); ripple(hp.cx, hp.cy, hp.r * 1.4, .35); document.body.style.cursor = 'grabbing'; return; }
   if (plantMode){
     if (season === 3){ setInteractionHint('Im Winter sind Seerosen unter dem Eis nicht pflanzbar.'); return; }
-    const pad = { x: e.clientX, y: e.clientY, r: R(30, 46), rot: R(0, 6), ph: R(0, 6), fr: Math.random(), vx: 0, vy: 0, cx: e.clientX, cy: e.clientY, flower: Math.random() < .35 };
+    const pad = { x: e.clientX, y: e.clientY, r: R(30, 46), scale: mapItemSize, rot: R(0, 6), ph: R(0, 6), fr: Math.random(), vx: 0, vy: 0, cx: e.clientX, cy: e.clientY, flower: Math.random() < .35 };
     pads.push(pad); ripple(e.clientX, e.clientY, 95, .65); setInteractionHint('Seerose gesetzt. Pflanzmodus bleibt aktiv.'); return;
   }
   if (bubbleMode){ spawnBubbles(e.clientX, e.clientY); setInteractionHint('Luftblasen steigen auf. Blasenmodus bleibt aktiv.'); return; }
@@ -1041,11 +1049,22 @@ document.head.appendChild(interactionStyle);
 const plantBtn = interactionDock.querySelector('#plantBtn'), bubbleBtn = interactionDock.querySelector('#bubbleBtn');
 const gardenBtn = document.createElement('button'); gardenBtn.id='gardenBtn'; gardenBtn.type='button'; gardenBtn.textContent='🪸 Teich gestalten'; interactionDock.appendChild(gardenBtn);
 const gardenPanel = document.createElement('section'); gardenPanel.id='gardenPanel';
-gardenPanel.innerHTML='<b>Teich gestalten</b><div class="gardenTools"><button type="button" data-decor="grass">🌿 Seegras</button><button type="button" data-decor="rock">🪨 Stein</button><button type="button" data-decor="coral">🪸 Koralle</button><button type="button" data-decor="wood">🪵 Treibholz</button><button type="button" data-decor="erase">⌫ Entfernen</button></div><small>Auswählen, dann im Wasser platzieren. Ziehe gesetzte Deko zum Verschieben.</small>';
+gardenPanel.innerHTML='<b>Teich gestalten</b><div class="gardenTools"><button type="button" data-decor="grass">🌿 Seegras</button><button type="button" data-decor="rock">🪨 Stein</button><button type="button" data-decor="coral">🪸 Koralle</button><button type="button" data-decor="wood">🪵 Treibholz</button><button type="button" data-decor="erase">⌫ Entfernen</button></div><div class="gardenSize"><label for="gardenSize">Größe <b id="gardenSizeValue">100 %</b></label><input id="gardenSize" type="range" min="40" max="220" step="5" value="100"></div><small>Skaliert das ausgewählte Objekt oder bestimmt die Größe für neue Objekte. Ziehe Deko zum Verschieben.</small>';
 document.body.appendChild(gardenPanel);
 const gardenStyle=document.createElement('style');
 gardenStyle.textContent='#gardenBtn{border:1px solid rgba(255,255,255,.28);border-radius:9px;padding:8px 10px;background:rgba(8,35,38,.82);color:#fff;font:12px sans-serif;cursor:pointer;box-shadow:0 2px 9px rgba(0,0,0,.18)} #gardenBtn.active{background:rgba(47,112,91,.94);border-color:rgba(220,255,220,.65)} #gardenPanel{position:fixed;left:12px;top:12px;z-index:22;display:none;width:226px;max-width:calc(100vw - 24px);padding:11px 12px;border:1px solid rgba(255,255,255,.22);border-radius:11px;background:rgba(5,28,32,.9);color:#fff;font:12px/1.45 sans-serif;box-shadow:0 5px 18px rgba(0,0,0,.28);backdrop-filter:blur(6px);user-select:none} .gardenTools{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:9px 0} .gardenTools button{padding:7px 6px;border:1px solid rgba(255,255,255,.2);border-radius:7px;background:rgba(255,255,255,.08);color:#fff;font:11px sans-serif;cursor:pointer} .gardenTools button.active{background:rgba(75,132,89,.9);border-color:#cbf0ad} #gardenPanel small{display:block;color:rgba(255,255,255,.75)}';
+gardenStyle.textContent+='.gardenSize{margin:8px 0}.gardenSize label{display:flex;justify-content:space-between;align-items:center}.gardenSize input{width:100%;margin:6px 0 0;accent-color:#a7d589}';
 document.head.appendChild(gardenStyle);
+const gardenSize=gardenPanel.querySelector('#gardenSize'), gardenSizeValue=gardenPanel.querySelector('#gardenSizeValue');
+function updateGardenSizeUI(){
+  const value=selectedMapItem?(selectedMapItem.kind==='decor'?selectedMapItem.item.size:(selectedMapItem.item.scale||1)):mapItemSize;
+  gardenSize.value=String(Math.round(value*100)); gardenSizeValue.textContent=Math.round(value*100)+' %';
+}
+gardenSize.addEventListener('input',e=>{
+  mapItemSize=Number(e.target.value)/100;
+  if(selectedMapItem){ if(selectedMapItem.kind==='decor'){selectedMapItem.item.size=mapItemSize;savePondDecor();} else selectedMapItem.item.scale=mapItemSize; }
+  updateGardenSizeUI();
+});
 interactionDock.addEventListener('pointerdown', e => e.stopPropagation());
 gardenPanel.addEventListener('pointerdown',e=>e.stopPropagation());
 gardenBtn.addEventListener('click',()=>{ pondEditMode=!pondEditMode; plantMode=false; bubbleMode=false; updateInteractionUI(); setInteractionHint(pondEditMode?'Wähle ein Werkzeug und platziere oder verschiebe es. Es bleibt aktiv, bis du es ausschaltest.':'Gestaltungsmodus beendet.'); });
