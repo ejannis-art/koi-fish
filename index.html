@@ -390,13 +390,14 @@ class Fish {
       }
     } else if (performance.now() - mouse.last < 3500 && mouse.speed < 30){
       const d = Math.hypot(mouse.x - hx, mouse.y - hy);
-      if (d < 420){ desired = Math.atan2(mouse.y - hy, mouse.x - hx); if (d < 90){ want = this.cruise * .25; desired += .9; } else want = this.cruise * 1.3; }
+      if (d < 420){ desired = Math.atan2(mouse.y - hy, mouse.x - hx); if (d < 90){ want = this.cruise * .25; desired += .78 * (1 - d / 90); } else want = this.cruise * 1.3; }
     } else { this.drift = clamp(this.drift + R(-.006, .006), -.03, .03); desired = this.a + this.drift * 20; }
     const m = 130;
     if (hx < m || hx > W - m || hy < m || hy > H - m){ desired = Math.atan2(H / 2 - hy, W / 2 - hx); if (this.scare > 0) this.scare = Math.min(this.scare, 8); }
-    const maxT = this.scare > 0 ? .12 : .045;
-    this.a += clamp(wrap(desired - this.a), -maxT, maxT) * dt;
-    this.sp += (want * (1 - .3 * fr) * (season === 3 ? .6 : 1) - this.sp) * .05 * dt;
+    const turnError=wrap(desired-this.a), turnBlend=1-Math.exp(-(this.scare>0?.11:.075)*dt), maxTurn=(this.scare>0?.14:.065)*dt;
+    this.a=wrap(this.a+clamp(turnError*turnBlend,-maxTurn,maxTurn));
+    const speedBlend=1-Math.exp(-.06*dt);
+    this.sp+=(want*(1-.3*fr)*(season===3?.6:1)-this.sp)*speedBlend;
     this.seg[0].x += Math.cos(this.a) * this.sp * dt * 2; this.seg[0].y += Math.sin(this.a) * this.sp * dt * 2;
     const gap = this.size * this.gapScale * (this.kind === 'puffer' ? 1 + this.inflate * .12 : 1);
     for (let i = 1; i < N; i++){
@@ -695,10 +696,10 @@ function makePads(){
   const n = Math.max(4, Math.round(W * H / 200000));
   for (let i = 0; i < n; i++) pads.push({ x: R(90, W - 90), y: R(90, H - 90), r: R(34, 62), scale: 1, rot: R(0, 6), ph: R(0, 6), fr: Math.random(), vx: 0, vy: 0, cx: 0, cy: 0, flower: Math.random() < .4 });
 }
-function drawPads(t){
+function drawPads(t,dt=1){
   if (season === 3) return;
   for (const p of pads){
-    if (p !== dragPad){ p.x = clamp(p.x + p.vx, 0, W); p.y = clamp(p.y + p.vy, 0, H); p.vx *= .96; p.vy *= .96; }
+    if (p !== dragPad){ p.x = clamp(p.x + p.vx*dt, 0, W); p.y = clamp(p.y + p.vy*dt, 0, H); p.vx *= Math.pow(.96,dt); p.vy *= Math.pow(.96,dt); }
     const x = p.x + Math.sin(t * .0001 + p.ph) * 6, y = p.y + Math.sin(t * .0008 + p.ph) * 1.5, r = p.r * (p.scale || 1); p.cx = x; p.cy = y;
     const a0=p.rot+.32, a1=p.rot+Math.PI*2-.32;
     const padPath=()=>{ ctx.beginPath(); ctx.moveTo(x,y); for(let i=0;i<=54;i++){ const a=a0+(a1-a0)*i/54, edge=r*(.985+Math.sin(a*5+p.ph)*.012+Math.cos(a*3-p.ph)*.009); ctx.lineTo(x+Math.cos(a)*edge,y+Math.sin(a)*edge); } ctx.closePath(); };
@@ -1174,7 +1175,7 @@ if(!loadPlayerGameState()) for (let i = 0; i < 7; i++) fishes.push(new Fish());
 setInterval(saveGameState,5000);
 addEventListener('beforeunload',saveGameState); addEventListener('pagehide',saveGameState);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveGameState();});
-const FRAME_INTERVAL_MS = 1000 / 45; // Begrenzt die aufwendige Canvas-Zeichnung auf 45 Bilder pro Sekunde.
+const FRAME_INTERVAL_MS = 1000 / 60; // Zeichnet im Takt gängiger Bildschirme.
 let lastT = performance.now(), lastRenderT = 0, lastInventoryUIT = 0, rainT = 0, simulationElapsedMs = 0, nextSeasonChangeMs = SEASON_LENGTH_MS;
 function updateEggs(elapsedMs){
   for (let i = eggs.length - 1; i >= 0; i--){
@@ -1226,7 +1227,7 @@ function frame(t){
   updatePassiveGold(elapsedMs);
   if (t - lastInventoryUIT >= 1000){ updateInventoryTimers(); updateShopUI(); lastInventoryUIT = t; }
   if ((rainT -= dt) <= 0){ ripple(R(0, W), R(0, H), R(50, 110), .3); rainT = R(60, 220); }
-  mouse.speed *= .9;
+  mouse.speed *= Math.pow(.9,dt);
   ctx.drawImage(bottom, 0, 0, W, H);
   ctx.globalCompositeOperation = 'lighter';
   causticLayer(1.4, .012, .008, .09 * SP.caus, t); causticLayer(1, -.01, .015, .065 * SP.caus, t);
@@ -1246,10 +1247,10 @@ function frame(t){
   ctx.fillStyle = 'rgba(11,56,64,.075)'; ctx.fillRect(0, 0, W, H);
   if (ice) ctx.drawImage(ice, 0, 0, W, H); // Wasserschicht über den Fischen
   for (const m of motes){ // Schwebeteilchen
-    m.x = (m.x + m.vx + W) % W; m.y = (m.y + m.vy + H) % H;
+    m.x = (m.x + m.vx*dt + W) % W; m.y = (m.y + m.vy*dt + H) % H;
     ctx.fillStyle = `rgba(220,255,245,${m.a})`; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 7); ctx.fill();
   }
-  updateFall(dt); drawRipples(dt); drawBubbles(dt, t); drawFood(t); drawEggs(t); drawPads(t); drawFall();
+  updateFall(dt); drawRipples(dt); drawBubbles(dt, t); drawFood(t); drawEggs(t); drawPads(t,dt); drawFall();
   ctx.fillStyle = SP.over; ctx.fillRect(0, 0, W, H);
   const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .4, W / 2, H / 2, Math.max(W, H) * .75);
   v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,10,14,.32)');
