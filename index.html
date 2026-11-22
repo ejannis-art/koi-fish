@@ -19,6 +19,7 @@ const off = () => { const c = document.createElement('canvas'); c.width = W * DP
 
 const mouse = { x: -999, y: -999, last: 0, speed: 0 };
 const ripples = [], food = [], pads = [], motes = [], fall = [], eggs = [], eggInventory = [], fishInventory = [], bubbles = [];
+let padsInitialized=false, staticResizeTimer=0;
 let nextFishId = 1, selectedFish = null, followSelected = false, plantMode = false, bubbleMode = false;
 const STARTING_GOLD=150, RARITY_GOLD_PER_MINUTE={'Häufig':2,'Selten':5,'Episch':12,'Legendär':30};
 const FREE_DECOR_TYPES=['grass','rock','coral','wood'];
@@ -170,13 +171,34 @@ function drawWaterSurface(t){
 }
 
 function resize(){
-  DPR = Math.min(window.devicePixelRatio || 1, 1.5);
-  W = innerWidth; H = innerHeight;
+  const oldW=W, oldH=H, oldDPR=DPR;
+  const nextW=Math.max(1,innerWidth), nextH=Math.max(1,innerHeight), nextDPR=Math.min(window.devicePixelRatio||1,1.5);
+  const hadSize=Number.isFinite(oldW)&&oldW>0&&Number.isFinite(oldH)&&oldH>0;
+  if(hadSize&&nextW===oldW&&nextH===oldH&&nextDPR===oldDPR) return;
+  if(hadSize&&(nextW!==oldW||nextH!==oldH)){
+    const sx=nextW/oldW, sy=nextH/oldH, oldMin=Math.max(1,Math.min(oldW,oldH)), newMin=Math.max(1,Math.min(nextW,nextH)), ss=newMin/oldMin;
+    const scalePoint=p=>{if(Number.isFinite(p.x))p.x*=sx;if(Number.isFinite(p.y))p.y*=sy;};
+    for(const fish of fishes){
+      for(const p of fish.seg) scalePoint(p);
+      fish.x*=sx; fish.y*=sy; fish.sx*=sx; fish.sy*=sy;
+      fish.size*=ss; fish.cruise*=ss; fish.sp*=ss; fish.depth*=ss;
+    }
+    for(const pad of pads){scalePoint(pad);if(Number.isFinite(pad.cx))pad.cx*=sx;if(Number.isFinite(pad.cy))pad.cy*=sy;if(Number.isFinite(pad.r))pad.r*=ss;if(Number.isFinite(pad.vx))pad.vx*=sx;if(Number.isFinite(pad.vy))pad.vy*=sy;if(Number.isFinite(pad.ox))pad.ox*=sx;if(Number.isFinite(pad.oy))pad.oy*=sy;}
+    for(const item of food) scalePoint(item);
+    for(const egg of eggs) scalePoint(egg);
+    for(const bubble of bubbles){scalePoint(bubble);bubble.vx*=sx;bubble.vy*=sy;bubble.r*=ss;}
+    for(const rippleItem of ripples){scalePoint(rippleItem);rippleItem.r*=ss;rippleItem.max*=ss;}
+    for(const leaf of fall){scalePoint(leaf);leaf.vx*=sx;leaf.vy*=sy;leaf.s*=ss;leaf.ty*=sy;}
+    for(const mote of motes){scalePoint(mote);mote.vx*=sx;mote.vy*=sy;}
+    mouse.speed=0; mouse.last=0;
+  }
+  DPR=nextDPR; W=nextW; H=nextH;
   cv.width = W * DPR; cv.height = H * DPR;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  buildStatic(); buildIce(); makePads();
-  motes.length = 0;
-  for (let i = 0; i < 45; i++) motes.push({ x: R(0, W), y: R(0, H), r: R(.8, 2.2), vx: R(-.1, .1), vy: R(-.08, .08), a: R(.08, .25) });
+  if(!hadSize){buildStatic();buildIce();}
+  else{clearTimeout(staticResizeTimer);staticResizeTimer=setTimeout(()=>{staticResizeTimer=0;buildStatic();buildIce();},120);}
+  if(!padsInitialized) makePads();
+  if(!motes.length) for (let i = 0; i < 45; i++) motes.push({ x: R(0, W), y: R(0, H), r: R(.8, 2.2), vx: R(-.1, .1), vy: R(-.08, .08), a: R(.08, .25) });
 }
 
 /* ---------- Koi ---------- */
@@ -695,6 +717,7 @@ function makePads(){
   pads.length = 0;
   const n = Math.max(4, Math.round(W * H / 200000));
   for (let i = 0; i < n; i++) pads.push({ x: R(90, W - 90), y: R(90, H - 90), r: R(34, 62), scale: 1, rot: R(0, 6), ph: R(0, 6), fr: Math.random(), vx: 0, vy: 0, cx: 0, cy: 0, flower: Math.random() < .4 });
+  padsInitialized=true;
 }
 function drawPads(t,dt=1){
   if (season === 3) return;
@@ -989,6 +1012,7 @@ function drawFishWake(){
 /* ---------- Eingabe ---------- */
 let dragPad = null, fishDrag = null;
 addEventListener('pointermove', e => {
+  if(e.target.closest?.('#pondInventory')){mouse.speed=0;return;}
   mouse.speed = Math.hypot(e.clientX - mouse.x, e.clientY - mouse.y);
   mouse.x = e.clientX; mouse.y = e.clientY; mouse.last = performance.now();
   if (decorDrag && decorDrag.pointerId === e.pointerId){
@@ -1102,7 +1126,7 @@ function saveGameState(){
   if(pendingGameSaveTimer){clearTimeout(pendingGameSaveTimer);pendingGameSaveTimer=0;}
   try{
     const minDim=Math.max(1,Math.min(W,H));
-    const state={version:1,savedAt:Date.now(),nextFishId,gold,goldRemainder,shopInventory:{...shopInventory},
+    const state={version:1,savedAt:Date.now(),minDim,nextFishId,gold,goldRemainder,shopInventory:{...shopInventory},
       fishes:fishes.map(f=>({species:f.species.name,rarity:f.rarity.name,id:f.id,ageMs:f.ageMs,foodLoad:f.foodLoad,hasSpawned:f.hasSpawned,dead:f.dead,deathMs:f.deathMs,deathReason:f.deathReason,
         x:f.seg[0].x/W,y:f.seg[0].y/H,a:f.a,size:f.size,cruise:f.cruise,sp:f.sp,drift:f.drift,phase:f.phase,depth:f.depth,tancho:f.tancho,belly:f.belly,fat:f.fat,base:f.base,spr:f.spr,flip:f.flip,dark:f.dark,inflate:f.inflate,patches:f.patches,
         seg:f.seg.map(p=>({x:p.x/W,y:p.y/H}))})),
@@ -1124,12 +1148,13 @@ function loadPlayerGameState(){
   try{
     const state=JSON.parse(localStorage.getItem(playerStorageKey(currentPlayerName,'save'))||'null');
     if(!state||state.version!==1) return false;
+    const currentMinDim=Math.max(1,Math.min(W,H)), savedMinDim=Number.isFinite(state.minDim)&&state.minDim>0?state.minDim:currentMinDim, viewportScale=currentMinDim/savedMinDim;
     const validSpecies=name=>FISH_SPECIES.some(s=>s.name===name), validRarity=name=>RARITIES.some(r=>r.name===name);
     fishes.length=0;
     for(const data of Array.isArray(state.fishes)?state.fishes:[]){
       if(!data||!validSpecies(data.species)||!validRarity(data.rarity)) continue;
       const fish=new Fish(clamp(Number(data.x)*W,40,W-40),clamp(Number(data.y)*H,40,H-40),{species:data.species,rarity:data.rarity});
-      for(const key of ['id','ageMs','foodLoad','deathMs','x','y','a','size','cruise','sp','drift','phase','depth','belly','fat','inflate','spr']) if(Number.isFinite(data[key])) fish[key]=data[key];
+      for(const key of ['id','ageMs','foodLoad','deathMs','x','y','a','size','cruise','sp','drift','phase','depth','belly','fat','inflate','spr']) if(Number.isFinite(data[key])) fish[key]=['size','cruise','sp','depth'].includes(key)?data[key]*viewportScale:data[key];
       for(const key of ['hasSpawned','dead','tancho','flip','dark']) if(typeof data[key]==='boolean') fish[key]=data[key];
       if(typeof data.deathReason==='string') fish.deathReason=data.deathReason;
       if(typeof data.base==='string') fish.base=data.base;
@@ -1425,6 +1450,12 @@ inventoryHandle.addEventListener('pointermove', e => {
   inventoryPanel.style.left = clamp(e.clientX - inventoryDrag.dx, 0, innerWidth - box.width) + 'px';
   inventoryPanel.style.top = clamp(e.clientY - inventoryDrag.dy, 0, innerHeight - box.height) + 'px';
 });
+addEventListener('resize',()=>{
+  if(inventoryPanel.style.bottom!=='auto'||!inventoryPanel.style.left||!inventoryPanel.style.top) return;
+  const box=inventoryPanel.getBoundingClientRect();
+  inventoryPanel.style.left=clamp(box.left,0,Math.max(0,innerWidth-box.width))+'px';
+  inventoryPanel.style.top=clamp(box.top,0,Math.max(0,innerHeight-box.height))+'px';
+});
 const stopInventoryDrag = e => { if (inventoryDrag && inventoryDrag.pointerId === e.pointerId) inventoryDrag = null; };
 inventoryHandle.addEventListener('pointerup', stopInventoryDrag); inventoryHandle.addEventListener('pointercancel', stopInventoryDrag);
 inventoryPanel.addEventListener('dragstart', e => {
@@ -1438,14 +1469,42 @@ addEventListener('drop', e => {
   if (draggedFishId === null) return;
   e.preventDefault();
   if (inventoryPanel.contains(e.target)){ draggedFishId = null; return; }
-  const index = fishInventory.findIndex(f => f.id === draggedFishId); draggedFishId = null;
-  if (index < 0) return;
-  if (fishes.filter(f => !f.dead).length >= MAX_POPULATION){ setInteractionHint('Der Teich ist voll. Ein Koi kann gerade nicht eingesetzt werden.'); return; }
-  const profile = fishInventory.splice(index, 1)[0];
-  fishes.push(new Fish(clamp(e.clientX, 40, W - 40), clamp(e.clientY, 40, H - 40), profile));
-  ripple(e.clientX, e.clientY, 95, .7); updateInventoryUI();
-  setInteractionHint(profile.rarity + 'er ' + profile.species + ' ist in den Teich gesetzt.');
+  const id=draggedFishId; draggedFishId=null; placeFishFromInventory(id,e.clientX,e.clientY);
 });
+function placeFishFromInventory(id,x,y){
+  const index=fishInventory.findIndex(f=>f.id===id); if(index<0) return;
+  if(fishes.filter(f=>!f.dead).length>=MAX_POPULATION){setInteractionHint('Der Teich ist voll. Ein Koi kann gerade nicht eingesetzt werden.');return;}
+  const profile=fishInventory.splice(index,1)[0], fishX=clamp(x,40,W-40), fishY=clamp(y,40,H-40);
+  fishes.push(new Fish(fishX,fishY,profile)); ripple(fishX,fishY,95,.7); updateInventoryUI(); saveGameState();
+  setInteractionHint(profile.rarity+'er '+profile.species+' ist in den Teich gesetzt.');
+}
+let inventoryPointerDrag=null;
+fishSlots.addEventListener('pointerdown',e=>{
+  if(e.pointerType!=='touch'&&e.pointerType!=='pen') return;
+  const card=e.target.closest('[data-fish-id]'); if(!card) return;
+  inventoryPointerDrag={id:Number(card.dataset.fishId),pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,active:false,card,ghost:null};
+  try{card.setPointerCapture(e.pointerId);}catch{}
+});
+fishSlots.addEventListener('pointermove',e=>{
+  const drag=inventoryPointerDrag; if(!drag||drag.pointerId!==e.pointerId) return;
+  if(!drag.active&&Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>8){
+    drag.active=true; drag.ghost=drag.card.cloneNode(true); drag.ghost.classList.add('fishDragGhost'); drag.ghost.removeAttribute('draggable'); drag.ghost.setAttribute('aria-hidden','true'); document.body.appendChild(drag.ghost);
+    drag.card.classList.add('touchDragging');
+    setInteractionHint('Ziehe den Fisch an eine freie Stelle im Wasser.');
+  }
+  if(!drag.active) return;
+  e.preventDefault(); e.stopPropagation(); drag.ghost.style.transform='translate3d('+(e.clientX+12)+'px,'+(e.clientY+12)+'px,0)';
+});
+function finishInventoryPointerDrag(e){
+  const drag=inventoryPointerDrag; if(!drag||drag.pointerId!==e.pointerId) return;
+  inventoryPointerDrag=null; drag.ghost?.remove(); drag.card.classList.remove('touchDragging');
+  if(drag.active){
+    e.preventDefault(); e.stopPropagation();
+    if(e.type==='pointerup'&&document.elementFromPoint(e.clientX,e.clientY)===cv) placeFishFromInventory(drag.id,e.clientX,e.clientY);
+    else if(e.type==='pointerup') setInteractionHint('Lege den Fisch direkt im Wasser ab.');
+  }
+}
+fishSlots.addEventListener('pointerup',finishInventoryPointerDrag); fishSlots.addEventListener('pointercancel',finishInventoryPointerDrag);
 function updateInventoryUI(){
   eggSlots.innerHTML = eggInventory.length ? eggInventory.map(e => '<div class="invCard eggCard" style="--rarity:' + (RARITIES.find(r => r.name === e.rarity) || RARITIES[0]).color + '"><b>🥚 ' + e.species + '</b><span>' + e.rarity + '</span><small data-egg-timer="' + e.id + '"></small></div>').join('') : '<span class="invEmpty">Noch keine Eier gesammelt</span>';
   fishSlots.innerHTML = fishInventory.length ? fishInventory.map(f => '<div class="invCard fishCard" draggable="true" data-fish-id="' + f.id + '" style="--rarity:' + (RARITIES.find(r => r.name === f.rarity) || RARITIES[0]).color + '"><b>🐟 ' + f.species + '</b><span>' + f.rarity + '</span><small>+' + (RARITY_GOLD_PER_MINUTE[f.rarity]||0) + ' Gold/min · Ziehen</small></div>').join('') : '<span class="invEmpty">Hier erscheinen Fische nach 5 Minuten</span>';
@@ -1460,7 +1519,7 @@ function updateInventoryTimers(){
   }
 }
 inventoryPanel.addEventListener('dragstart', e => { if (e.target.closest('[data-fish-id]')) setInteractionHint('Ziehe den Fisch an eine freie Stelle im Wasser.'); });
-interactionStyle.textContent += ' #pondInventory{position:fixed;left:50%;bottom:38px;transform:translateX(-50%);z-index:21;width:min(450px,calc(100vw - 24px));min-width:min(260px,calc(100vw - 24px));min-height:112px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;resize:both;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(5,28,32,.78);color:#fff;font:11px/1.32 sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.25);backdrop-filter:blur(5px)} .invHead{display:flex;justify-content:space-between;align-items:center;font-size:13px;cursor:move;touch-action:none;user-select:none}.invHead span,.invEmpty{opacity:.7}.invLabel{margin-top:4px;opacity:.8}.invSlots{display:flex;gap:6px;min-height:30px;overflow-x:auto;padding:3px 0}.invCard{flex:0 0 auto;display:flex;flex-direction:column;gap:1px;min-width:82px;padding:4px 6px;border:1px solid var(--rarity);border-radius:8px;background:rgba(255,255,255,.08);color:#fff}.invCard span{color:var(--rarity)} .invCard small{font-size:10px;opacity:.75}.fishCard{cursor:grab;touch-action:none}.fishCard:active{cursor:grabbing} .invEmpty{padding:5px 2px}';
+interactionStyle.textContent += ' #pondInventory{position:fixed;left:50%;bottom:38px;transform:translateX(-50%);z-index:21;width:min(450px,calc(100vw - 24px));min-width:min(260px,calc(100vw - 24px));min-height:112px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;resize:both;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(5,28,32,.78);color:#fff;font:11px/1.32 sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.25);backdrop-filter:blur(5px)} .invHead{display:flex;justify-content:space-between;align-items:center;font-size:13px;cursor:move;touch-action:none;user-select:none}.invHead span,.invEmpty{opacity:.7}.invLabel{margin-top:4px;opacity:.8}.invSlots{display:flex;gap:6px;min-height:30px;overflow-x:auto;padding:3px 0}.invCard{flex:0 0 auto;display:flex;flex-direction:column;gap:1px;min-width:82px;padding:4px 6px;border:1px solid var(--rarity);border-radius:8px;background:rgba(255,255,255,.08);color:#fff}.invCard span{color:var(--rarity)} .invCard small{font-size:10px;opacity:.75}.fishCard{cursor:grab;touch-action:none}.fishCard:active{cursor:grabbing}.fishDragGhost{position:fixed;left:0;top:0;z-index:100;pointer-events:none;opacity:.95;will-change:transform;box-shadow:0 12px 28px rgba(0,0,0,.4)} .fishCard.touchDragging{opacity:.35} .invEmpty{padding:5px 2px}';
 interactionStyle.textContent += ' #pondInventory.dropTarget{border-color:#83f0cb;box-shadow:0 0 0 3px rgba(131,240,203,.35),0 4px 18px rgba(0,0,0,.3)}';
 const polishStyle=document.createElement('style');
 polishStyle.textContent=`
