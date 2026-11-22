@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Koi Teich</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<style>html,body{margin:0;height:100%;overflow:hidden;background:#0b3a40}canvas{display:block;width:100%;height:100%}</style>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#0b3a40}canvas{display:block;width:100%;height:100%;touch-action:none}</style>
 </head>
 <body>
 <canvas id="c"></canvas>
@@ -1074,7 +1074,7 @@ addEventListener('pointerdown', e => {
   }
   const koi = hitFish(e.clientX, e.clientY);
   if (koi){
-    selectedFish = koi; followSelected = false;
+    selectedFish = koi; followSelected = false; lastFishInfoUpdate=0;
     fishDrag = { fish: koi, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY, active: false };
     cv.setPointerCapture(e.pointerId);
     ripple(koi.seg[0].x, koi.seg[0].y, 72, .65); updateInteractionUI(); return;
@@ -1099,6 +1099,7 @@ addEventListener('dblclick', e => {
 /* ---------- Loop ---------- */
 const fishes = [];
 function saveGameState(){
+  if(pendingGameSaveTimer){clearTimeout(pendingGameSaveTimer);pendingGameSaveTimer=0;}
   try{
     const minDim=Math.max(1,Math.min(W,H));
     const state={version:1,savedAt:Date.now(),nextFishId,gold,goldRemainder,shopInventory:{...shopInventory},
@@ -1112,6 +1113,11 @@ function saveGameState(){
     savePondDecor();
     if(saveStatusEl) saveStatusEl.textContent='Zuletzt gespeichert: '+new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
   }catch{ if(saveStatusEl) saveStatusEl.textContent='Speichern derzeit nicht verfügbar'; }
+}
+let pendingGameSaveTimer=0;
+function queueGameSave(){
+  clearTimeout(pendingGameSaveTimer);
+  pendingGameSaveTimer=setTimeout(()=>{pendingGameSaveTimer=0;saveGameState();},320);
 }
 function loadPlayerGameState(){
   loadDecorForPlayer();
@@ -1318,8 +1324,9 @@ function updateGardenSizeUI(){
 gardenSize.addEventListener('input',e=>{
   mapItemSize=Number(e.target.value)/100;
   if(selectedMapItem){ if(selectedMapItem.kind==='decor')selectedMapItem.item.size=mapItemSize; else selectedMapItem.item.scale=mapItemSize; }
-  updateGardenSizeUI(); saveGameState();
+  updateGardenSizeUI(); queueGameSave();
 });
+gardenSize.addEventListener('change',()=>saveGameState());
 let ownedDecorSignature='';
 function renderOwnedDecorTools(){
   const signature=SHOP_DECOR_ITEMS.map(item=>item.id+':'+(shopInventory[item.id]||0)).join('|');
@@ -1333,11 +1340,14 @@ function renderOwnedDecorTools(){
 }
 function updateShopUI(){
   const rate=goldPerMinute(), balance=Math.floor(gold);
-  goldBadge.textContent='💰 '+balance.toLocaleString('de-DE')+' · +'+rate+'/min';
-  shopGold.textContent='💰 '+balance.toLocaleString('de-DE')+' Gold'; shopIncome.textContent='+'+rate+' / min';
-  for(const item of SHOP_DECOR_ITEMS){
-    const stock=shopPanel.querySelector('[data-stock="'+item.id+'"]'), buy=shopPanel.querySelector('[data-buy="'+item.id+'"]');
-    stock.textContent='Besitz: '+(shopInventory[item.id]||0); buy.disabled=gold<item.price;
+  const badgeText='💰 '+balance.toLocaleString('de-DE')+' · +'+rate+'/min';
+  if(goldBadge.textContent!==badgeText) goldBadge.textContent=badgeText;
+  if(shopPanel.style.display!=='none'){
+    shopGold.textContent='💰 '+balance.toLocaleString('de-DE')+' Gold'; shopIncome.textContent='+'+rate+' / min';
+    for(const item of SHOP_DECOR_ITEMS){
+      const stock=shopPanel.querySelector('[data-stock="'+item.id+'"]'), buy=shopPanel.querySelector('[data-buy="'+item.id+'"]');
+      stock.textContent='Besitz: '+(shopInventory[item.id]||0); buy.disabled=gold<item.price;
+    }
   }
   renderOwnedDecorTools();
 }
@@ -1513,13 +1523,21 @@ function updateInteractionUI(){
   fishInfo.style.display = 'block';
   followBtn.textContent = followSelected ? '⏸ Loslassen' : '🐟 Anlocken';
 }
+let lastFishInfoUpdate=0;
 function updateFishInfo(){
+  const now=performance.now();
   if (selectedFish && selectedFish.dead){ selectedFish = null; followSelected = false; updateInteractionUI(); }
   if (selectedFish && !selectedFish.dead){
-    const mins = Math.floor(selectedFish.ageMs / 60000), secs = Math.floor((selectedFish.ageMs % 60000) / 1000);
-    fishInfoText.innerHTML = '<b>🐟 ' + selectedFish.species.name + ' #' + selectedFish.id + '</b><br>Art: ' + selectedFish.species.name + '<br>Seltenheit: <span style="color:' + selectedFish.rarity.color + '">' + selectedFish.rarity.name + '</span><br>Produktion: +' + (RARITY_GOLD_PER_MINUTE[selectedFish.rarity.name]||0) + ' Gold/min<br>Alter: ' + mins + ':' + String(secs).padStart(2, '0') + ' min<br>Futteraufnahme: ' + selectedFish.foodLoad.toFixed(1) + ' / ' + OVERFEED_LIMIT + '<br>Status: ' + (followSelected ? 'folgt deinem Zeiger' : 'schwimmt frei');
+    if(fishInfo.style.display!=='block'){fishInfo.style.display='block';lastFishInfoUpdate=0;}
+    if(now-lastFishInfoUpdate>=250){
+      const mins = Math.floor(selectedFish.ageMs / 60000), secs = Math.floor((selectedFish.ageMs % 60000) / 1000);
+      fishInfoText.innerHTML = '<b>🐟 ' + selectedFish.species.name + ' #' + selectedFish.id + '</b><br>Art: ' + selectedFish.species.name + '<br>Seltenheit: <span style="color:' + selectedFish.rarity.color + '">' + selectedFish.rarity.name + '</span><br>Produktion: +' + (RARITY_GOLD_PER_MINUTE[selectedFish.rarity.name]||0) + ' Gold/min<br>Alter: ' + mins + ':' + String(secs).padStart(2, '0') + ' min<br>Futteraufnahme: ' + selectedFish.foodLoad.toFixed(1) + ' / ' + OVERFEED_LIMIT + '<br>Status: ' + (followSelected ? 'folgt deinem Zeiger' : 'schwimmt frei');
+      lastFishInfoUpdate=now;
+    }
+  } else if(fishInfo.style.display!=='none'){
+    fishInfo.style.display='none';
   }
-  if (hintUntil && performance.now() > hintUntil){ interactionHint.style.display = 'none'; hintUntil = 0; }
+  if (hintUntil && now > hintUntil){ interactionHint.style.display = 'none'; hintUntil = 0; }
 }
 setInteractionHint('Tippe auf ein Ei, um es zu sammeln. Geschlüpfte Fische ziehst du aus dem Inventar ins Wasser.');
 requestAnimationFrame(frame);
